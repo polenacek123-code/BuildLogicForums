@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Admin Dashboard</title></head>
+<body>
+  <a href="/">← Back to Forum</a>
+  <h1>Admin Dashboard</h1>
+
+  <h2>Manage Users</h2>
+  <table border="1" cellpadding="5">
+    <tr><th>ID</th><th>Username</th><th>Action / Reset Password</th></tr>
+    <% users.forEach(u => { %>
+      <tr>
+        <td><%= u.id %></td>
+        <td><a href="/user/<%= u.username %>"><%= u.username %></a></td>
+        <td>
+          <form action="/admin/delete-user" method="POST" style="display:inline;">
+            <input type="hidden" name="user_id" value="<%= u.id %>">
+            <button type="submit" onclick="return confirm('Delete this user?')">Delete User</button>
+          </form>
+          <form action="/admin/reset-password" method="POST" style="display:inline; margin-left: 10px;">
+            <input type="hidden" name="user_id" value="<%= u.id %>">
+            <input type="text" name="new_password" placeholder="New Password" required>
+            <button type="submit">Set New Password</button>
+          </form>
+        </td>
+      </tr>
+    <% }) %>
+  </table>
+
+  <h2>Manage Questions</h2>
+  <ul>
+    <% questions.forEach(q => { %>
+      <li>
+        <strong><%= q.title %></strong> (by <%= q.username %>)
+        <form action="/admin/delete-question" method="POST" style="display:inline; margin-left: 10px;">
+          <input type="hidden" name="question_id" value="<%= q.id %>">
+          <button type="submit" onclick="return confirm('Delete question?')">Delete</button>
+        </form>
+      </li>
+    <% }) %>
+  </ul>
+</body>
+</html>
