@@ -1,18 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Build Logic - Unofficial Community Forum</title>
-</head>
+<head><meta charset="UTF-8"><title>Build Logic Forum</title></head>
 <body>
   <h1>Build Logic Community Forum</h1>
-
   <nav>
     <% if (user) { %>
-      Logged in as: <strong><%= user.username %></strong> | <a href="/logout">Logout</a>
+      Logged in as: <a href="/user/<%= user.username %>"><strong><%= user.username %></strong></a> | <a href="/logout">Logout</a>
     <% } else { %>
       <a href="/login">Login</a> | <a href="/register">Register</a>
     <% } %>
+    <% if (isAdmin) { %> | <a href="/admin/dashboard" style="color:red;">Admin Dashboard</a><% } %>
   </nav>
 
   <hr>
@@ -28,11 +25,9 @@
     <h2>Ask a Question</h2>
     <form action="/questions" method="POST">
       <input type="text" name="title" placeholder="Question Title" required><br><br>
-      <textarea name="body" placeholder="Describe your issue or logic puzzle..." required></textarea><br><br>
+      <textarea name="body" placeholder="Describe your logic puzzle..." required></textarea><br><br>
       <button type="submit">Post Question</button>
     </form>
-  <% } else { %>
-    <p><a href="/login">Log in</a> to ask a question.</p>
   <% } %>
 
   <h2>Recent Questions</h2>
@@ -40,7 +35,7 @@
     <% questions.forEach(q => { %>
       <li>
         <a href="/questions/<%= q.id %>"><strong><%= q.title %></strong></a> 
-        (Asked by: <%= q.username %>, Answers: <%= q.answer_count %>)
+        (Asked by: <a href="/user/<%= q.username %>"><%= q.username %></a>, Answers: <%= q.answer_count %>)
       </li>
     <% }) %>
   </ul>
