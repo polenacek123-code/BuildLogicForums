@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Profile: <%= profileUser.username %></title></head>
+<body>
+  <a href="/">← Back to Forum</a>
+  <h1>User Profile: <%= profileUser.username %></h1>
+  <p>Joined on: <%= profileUser.created_at %></p>
+
+  <hr>
+
+  <h2>Questions Posted (<%= questions.length %>)</h2>
+  <ul>
+    <% questions.forEach(q => { %>
+      <li><a href="/questions/<%= q.id %>"><%= q.title %></a></li>
+    <% }) %>
+  </ul>
+
+  <h2>Answers Given (<%= answers.length %>)</h2>
+  <ul>
+    <% answers.forEach(a => { %>
+      <li>On question <a href="/questions/<%= a.question_id %>"><%= a.question_title %></a>: "<%= a.body %>"</li>
+    <% }) %>
+  </ul>
+</body>
+</html>
