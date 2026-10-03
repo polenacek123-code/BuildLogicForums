@@ -1,19 +1,33 @@
 const express = require('express');
 const session = require('express-session');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 const app = express();
 const db = new sqlite3.Database('forum.db');
 
-// Initialize Database Tables
+// Seznam anglických sprostých slov pro filtr
+const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
+
+function filterBadWords(text) {
+  if (!text) return text;
+  let filtered = text;
+  BAD_WORDS.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    filtered = filtered.replace(regex, '***');
+  });
+  return filtered;
+}
+
+// Inicializace databáze
 db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE,
-      password TEXT
+      password TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -23,8 +37,7 @@ db.serialize(() => {
       title TEXT,
       body TEXT,
       user_id INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(user_id) REFERENCES users(id)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -34,16 +47,14 @@ db.serialize(() => {
       question_id INTEGER,
       user_id INTEGER,
       body TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(question_id) REFERENCES questions(id),
-      FOREIGN KEY(user_id) REFERENCES users(id)
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 });
 
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: 'build-logic-secret-key',
+  secret: 'build-logic-super-secret-key-12345',
   resave: false,
   saveUninitialized: false
 }));
@@ -51,74 +62,79 @@ app.use(session({
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Pass user context to EJS templates
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
+  res.locals.isAdmin = req.session.isAdmin || false;
   next();
 });
 
-// Home Page & Search
+// Middleware pro Cooldown (15 sekund mezi příspěvky)
+function checkCooldown(req, res, next) {
+  const now = Date.now();
+  const lastPost = req.session.lastPostTime || 0;
+  if (now - lastPost < 15000) {
+    const remaining = Math.ceil((15000 - (now - lastPost)) / 1000);
+    return res.send(`Please wait ${remaining} seconds before posting again (Anti-Spam Cooldown).`);
+  }
+  req.session.lastPostTime = now;
+  next();
+}
+
+// Hlavní stránka + Vyhledávání
 app.get('/', (req, res) => {
   const search = req.query.search || '';
+  let query = `
+    SELECT q.*, u.username, COUNT(a.id) as answer_count 
+    FROM questions q 
+    LEFT JOIN users u ON q.user_id = u.id 
+    LEFT JOIN answers a ON q.id = a.question_id
+  `;
+  let params = [];
 
   if (search) {
-    const query = `
-      SELECT q.*, u.username, COUNT(a.id) as answer_count 
-      FROM questions q 
-      JOIN users u ON q.user_id = u.id 
-      LEFT JOIN answers a ON q.id = a.question_id
-      WHERE q.title LIKE ? OR q.body LIKE ?
-      GROUP BY q.id
-      ORDER BY q.created_at DESC
-    `;
-    db.all(query, [`%${search}%`, `%${search}%`], (err, questions) => {
-      if (err) return res.status(500).send('Database error.');
-      res.render('index', { questions: questions || [], search });
-    });
-  } else {
-    const query = `
-      SELECT q.*, u.username, COUNT(a.id) as answer_count 
-      FROM questions q 
-      JOIN users u ON q.user_id = u.id 
-      LEFT JOIN answers a ON q.id = a.question_id
-      GROUP BY q.id
-      ORDER BY q.created_at DESC
-    `;
-    db.all(query, [], (err, questions) => {
-      if (err) return res.status(500).send('Database error.');
-      res.render('index', { questions: questions || [], search });
-    });
+    query += ` WHERE q.title LIKE ? OR q.body LIKE ?`;
+    params = [`%${search}%`, `%${search}%`];
   }
+
+  query += ` GROUP BY q.id ORDER BY q.created_at DESC`;
+
+  db.all(query, params, (err, questions) => {
+    if (err) return res.status(500).send("Database error: " + err.message);
+    res.render('index', { questions: questions || [], search });
+  });
 });
 
-// User Registration
+// Registrace (s 2x heslem)
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.send('Please provide username and password.');
+  const { username, password, confirm_password } = req.body;
+  
+  if (!username || !password || !confirm_password) {
+    return res.send('Please fill in all fields.');
+  }
+
+  if (password !== confirm_password) {
+    return res.send('Passwords do not match!');
+  }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], function(err) {
-      if (err) {
-        return res.send('Username is already taken.');
-      }
+    db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
+      if (err) return res.send('Username is already taken.');
       res.redirect('/login');
     });
   } catch (err) {
-    res.status(500).send('Server error during registration.');
+    res.status(500).send('Error during registration: ' + err.message);
   }
 });
 
-// User Login
+// Přihlášení
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
 
   db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
-    if (err || !user) {
-      return res.send('Invalid username or password.');
-    }
+    if (err || !user) return res.send('Invalid username or password.');
 
     const match = await bcrypt.compare(password, user.password);
     if (match) {
@@ -130,82 +146,128 @@ app.post('/login', (req, res) => {
   });
 });
 
-// Logout
+// Admin Login (heslo: ForumModeration75)
+app.get('/admin', (req, res) => res.render('admin_login'));
+app.post('/admin', (req, res) => {
+  const { admin_password } = req.body;
+  if (admin_password === 'ForumModeration75') {
+    req.session.isAdmin = true;
+    res.redirect('/admin/dashboard');
+  } else {
+    res.send('Incorrect Admin Password.');
+  }
+});
+
+// Admin Dashboard
+app.get('/admin/dashboard', (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+
+  db.all('SELECT id, username, created_at FROM users', [], (err, users) => {
+    db.all('SELECT q.id, q.title, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id', [], (err, questions) => {
+      res.render('admin_dashboard', { users: users || [], questions: questions || [] });
+    });
+  });
+});
+
+// Admin - Smazat otázku
+app.post('/admin/delete-question', (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { question_id } = req.body;
+  db.run('DELETE FROM questions WHERE id = ?', [question_id], () => {
+    db.run('DELETE FROM answers WHERE question_id = ?', [question_id], () => {
+      res.redirect('/admin/dashboard');
+    });
+  });
+});
+
+// Admin - Smazat odpověď
+app.post('/admin/delete-answer', (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { answer_id, question_id } = req.body;
+  db.run('DELETE FROM answers WHERE id = ?', [answer_id], () => {
+    res.redirect(`/questions/${question_id}`);
+  });
+});
+
+// Admin - Smazat uživatele
+app.post('/admin/delete-user', (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { user_id } = req.body;
+  db.run('DELETE FROM users WHERE id = ?', [user_id], () => {
+    db.run('DELETE FROM questions WHERE user_id = ?', [user_id], () => {
+      db.run('DELETE FROM answers WHERE user_id = ?', [user_id], () => {
+        res.redirect('/admin/dashboard');
+      });
+    });
+  });
+});
+
+// Admin - Resetovat heslo uživatele
+app.post('/admin/reset-password', async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { user_id, new_password } = req.body;
+  const hashedPassword = await bcrypt.hash(new_password, 10);
+  db.run('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, user_id], () => {
+    res.redirect('/admin/dashboard');
+  });
+});
+
+// Odhlášení
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');
 });
 
-// Post a new question
-app.post('/questions', (req, res) => {
+// Přidání otázky (s filtry a cooldownem)
+app.post('/questions', checkCooldown, (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const { title, body } = req.body;
+  let { title, body } = req.body;
+
+  title = filterBadWords(title);
+  body = filterBadWords(body);
 
   db.run('INSERT INTO questions (title, body, user_id) VALUES (?, ?, ?)', [title, body, req.session.user.id], (err) => {
-    if (err) return res.status(500).send('Failed to post question.');
+    if (err) return res.status(500).send('Error saving question.');
     res.redirect('/');
   });
 });
 
-// Question Details & Answers
+// Detail otázky
 app.get('/questions/:id', (req, res) => {
-  const questionQuery = `
-    SELECT q.*, u.username 
-    FROM questions q 
-    JOIN users u ON q.user_id = u.id 
-    WHERE q.id = ?
-  `;
-
-  db.get(questionQuery, [req.params.id], (err, question) => {
+  db.get('SELECT q.*, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id WHERE q.id = ?', [req.params.id], (err, question) => {
     if (err || !question) return res.status(404).send('Question not found.');
 
-    const answersQuery = `
-      SELECT a.*, u.username 
-      FROM answers a 
-      JOIN users u ON a.user_id = u.id 
-      WHERE a.question_id = ? 
-      ORDER BY a.created_at ASC
-    `;
-
-    db.all(answersQuery, [req.params.id], (err, answers) => {
-      if (err) return res.status(500).send('Error loading answers.');
+    db.all('SELECT a.*, u.username FROM answers a LEFT JOIN users u ON a.user_id = u.id WHERE a.question_id = ? ORDER BY a.created_at ASC', [req.params.id], (err, answers) => {
       res.render('question', { question, answers: answers || [] });
     });
   });
 });
 
-// Post an Answer
-app.post('/questions/:id/answers', (req, res) => {
+// Přidání odpovědi (s filtry a cooldownem)
+app.post('/questions/:id/answers', checkCooldown, (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const { body } = req.body;
+  let { body } = req.body;
+
+  body = filterBadWords(body);
 
   db.run('INSERT INTO answers (question_id, user_id, body) VALUES (?, ?, ?)', [req.params.id, req.session.user.id, body], (err) => {
-    if (err) return res.status(500).send('Failed to post answer.');
+    if (err) return res.status(500).send('Error saving answer.');
     res.redirect(`/questions/${req.params.id}`);
   });
 });
 
-// Cleanup inactive questions (e.g., older than 30 days with fewer than 2 answers)
-app.post('/admin/cleanup', (req, res) => {
-  if (!req.session.user) return res.status(403).send('Access denied.');
+// Uživatelský profil (zobrazení všech otázek a odpovědí uživatele)
+app.get('/user/:username', (req, res) => {
+  db.get('SELECT id, username, created_at FROM users WHERE username = ?', [req.params.username], (err, profileUser) => {
+    if (err || !profileUser) return res.status(404).send('User not found.');
 
-  const cleanupQuery = `
-    DELETE FROM questions 
-    WHERE created_at < datetime('now', '-30 days')
-    AND id IN (
-      SELECT q.id 
-      FROM questions q 
-      LEFT JOIN answers a ON q.id = a.question_id 
-      GROUP BY q.id 
-      HAVING COUNT(a.id) < 2
-    )
-  `;
-
-  db.run(cleanupQuery, function(err) {
-    if (err) return res.status(500).send('Cleanup failed.');
-    res.send(`Cleaned up ${this.changes} inactive question(s).`);
+    db.all('SELECT * FROM questions WHERE user_id = ? ORDER BY created_at DESC', [profileUser.id], (err, questions) => {
+      db.all('SELECT a.*, q.title as question_title FROM answers a JOIN questions q ON a.question_id = q.id WHERE a.user_id = ? ORDER BY a.created_at DESC', [profileUser.id], (err, answers) => {
+        res.render('profile', { profileUser, questions: questions || [], answers: answers || [] });
+      });
+    });
   });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Build Logic Forum is running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Forum is running on port ${PORT}`));
