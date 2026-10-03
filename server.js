@@ -8,7 +8,7 @@ const app = express();
 const db = new sqlite3.Database('forum.db');
 
 // Seznam anglických sprostých slov pro filtr
-const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
+const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick', 'motmot', 'nigger', 'nigga', 'idiot', 'dumbass', 'shitty', 'ass', 'sex', '67'];
 
 function filterBadWords(text) {
   if (!text) return text;
