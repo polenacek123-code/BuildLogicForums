@@ -1,13 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title><%= question.title %></title>
-</head>
+<head><meta charset="UTF-8"><title><%= question.title %></title></head>
 <body>
   <a href="/">← Back to Forum</a>
   <h1><%= question.title %></h1>
-  <p><em>Asked by <%= question.username %> on <%= question.created_at %></em></p>
+  <p><em>Asked by <a href="/user/<%= question.username %>"><%= question.username %></a> on <%= question.created_at %></em></p>
   <p><%= question.body %></p>
 
   <hr>
@@ -16,7 +13,14 @@
   <ul>
     <% answers.forEach(a => { %>
       <li>
-        <strong><%= a.username %>:</strong> <%= a.body %>
+        <a href="/user/<%= a.username %>"><strong><%= a.username %></strong></a>: <%= a.body %>
+        <% if (isAdmin) { %>
+          <form action="/admin/delete-answer" method="POST" style="display:inline; margin-left:10px;">
+            <input type="hidden" name="answer_id" value="<%= a.id %>">
+            <input type="hidden" name="question_id" value="<%= question.id %>">
+            <button type="submit" style="color:red;">Delete</button>
+          </form>
+        <% } %>
       </li>
     <% }) %>
   </ul>
@@ -24,7 +28,7 @@
   <% if (user) { %>
     <h4>Post an Answer</h4>
     <form action="/questions/<%= question.id %>/answers" method="POST">
-      <textarea name="body" placeholder="Write your solution or advice here..." required></textarea><br><br>
+      <textarea name="body" placeholder="Write your answer..." required></textarea><br><br>
       <button type="submit">Submit Answer</button>
     </form>
   <% } else { %>
