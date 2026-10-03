@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Build Logic - Unofficial Community Forum</title>
+</head>
+<body>
+  <h1>Build Logic Community Forum</h1>
+
+  <nav>
+    <% if (user) { %>
+      Logged in as: <strong><%= user.username %></strong> | <a href="/logout">Logout</a>
+    <% } else { %>
+      <a href="/login">Login</a> | <a href="/register">Register</a>
+    <% } %>
+  </nav>
+
+  <hr>
+
+  <h2>Search Questions</h2>
+  <form action="/" method="GET">
+    <input type="text" name="search" placeholder="Search questions..." value="<%= search %>">
+    <button type="submit">Search</button>
+    <% if (search) { %><a href="/">Clear Filter</a><% } %>
+  </form>
+
+  <% if (user) { %>
+    <h2>Ask a Question</h2>
+    <form action="/questions" method="POST">
+      <input type="text" name="title" placeholder="Question Title" required><br><br>
+      <textarea name="body" placeholder="Describe your issue or logic puzzle..." required></textarea><br><br>
+      <button type="submit">Post Question</button>
+    </form>
+  <% } else { %>
+    <p><a href="/login">Log in</a> to ask a question.</p>
+  <% } %>
+
+  <h2>Recent Questions</h2>
+  <ul>
+    <% questions.forEach(q => { %>
+      <li>
+        <a href="/questions/<%= q.id %>"><strong><%= q.title %></strong></a> 
+        (Asked by: <%= q.username %>, Answers: <%= q.answer_count %>)
+      </li>
+    <% }) %>
+  </ul>
+</body>
+</html>

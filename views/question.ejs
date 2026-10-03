@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= question.title %></title>
+</head>
+<body>
+  <a href="/">← Back to Forum</a>
+  <h1><%= question.title %></h1>
+  <p><em>Asked by <%= question.username %> on <%= question.created_at %></em></p>
+  <p><%= question.body %></p>
+
+  <hr>
+
+  <h3>Answers</h3>
+  <ul>
+    <% answers.forEach(a => { %>
+      <li>
+        <strong><%= a.username %>:</strong> <%= a.body %>
+      </li>
+    <% }) %>
+  </ul>
+
+  <% if (user) { %>
+    <h4>Post an Answer</h4>
+    <form action="/questions/<%= question.id %>/answers" method="POST">
+      <textarea name="body" placeholder="Write your solution or advice here..." required></textarea><br><br>
+      <button type="submit">Submit Answer</button>
+    </form>
+  <% } else { %>
+    <p><a href="/login">Log in</a> to reply.</p>
+  <% } %>
+</body>
+</html>
