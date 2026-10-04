@@ -13,31 +13,37 @@
     .vote-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-weight: bold; }
     .vote-btn:hover { background: #e2e8f0; }
     a { color: #2563eb; text-decoration: none; }
-  .mention-link {
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .mention-link:hover {
-    text-decoration: underline;
-    background: rgba(59, 130, 246, 0.2);
-  }
-  
-  .question-link {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.1);
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .question-link:hover {
-    text-decoration: underline;
-    background: rgba(16, 185, 129, 0.2);
-  }
+    .mention-link {
+      color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .mention-link:hover {
+      text-decoration: underline;
+      background: rgba(59, 130, 246, 0.2);
+    }
+    .question-link {
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .question-link:hover {
+      text-decoration: underline;
+      background: rgba(16, 185, 129, 0.2);
+    }
+    .image-upload-box {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
@@ -68,7 +74,16 @@
         <h3>Ask a Question</h3>
         <form action="/questions" method="POST">
           <input type="text" name="title" placeholder="Title" required style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;"><br>
-          <textarea name="body" rows="3" placeholder="Describe your issue... (use /colortext &quot;red&quot; &quot;text&quot; for colored text)" required style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;"></textarea><br>
+          
+          <!-- Image Upload Component -->
+          <div class="image-upload-box">
+            <label style="font-size: 0.85rem; color: #64748b; font-weight: 600; display: block; margin-bottom: 5px;">Attach Image:</label>
+            <input type="file" id="imageInput" accept="image/*" style="font-size: 0.85rem;">
+            <button type="button" onclick="uploadImage()" style="padding: 4px 10px; font-size: 0.85rem; border-radius: 6px; background: #475569; color: white; border: none; cursor: pointer;">Upload Image</button>
+            <span id="uploadStatus" style="font-size: 0.85rem; margin-left: 10px; color: #64748b;"></span>
+          </div>
+
+          <textarea id="questionBody" name="body" rows="3" placeholder="Describe your issue... (use /colortext &quot;red&quot; &quot;text&quot; for colored text, or /img &quot;url&quot; for images)" required style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;"></textarea><br>
           <button type="submit" style="padding:10px 20px; border-radius:8px; background:#2563eb; color:white; border:none; cursor:pointer;">Post Question</button>
         </form>
       </div>
@@ -96,5 +111,43 @@
       </div>
     <% }) %>
   </div>
+
+  <script>
+    async function uploadImage() {
+      const fileInput = document.getElementById('imageInput');
+      const status = document.getElementById('uploadStatus');
+      const textarea = document.getElementById('questionBody');
+
+      if (!fileInput.files[0]) {
+        alert('Please select an image file first.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', fileInput.files[0]);
+
+      status.innerText = 'Uploading...';
+
+      try {
+        const response = await fetch('/upload-image', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.imageUrl) {
+          textarea.value += `\n/img "${data.imageUrl}"\n`;
+          status.innerText = 'Uploaded successfully!';
+          fileInput.value = '';
+        } else {
+          status.innerText = 'Upload failed: ' + (data.error || 'Unknown error');
+        }
+      } catch (err) {
+        status.innerText = 'Error uploading image.';
+        console.error(err);
+      }
+    }
+  </script>
 </body>
 </html>
