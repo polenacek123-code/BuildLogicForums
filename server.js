@@ -235,36 +235,27 @@ app.post('/register', async (req, res) => {
 
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
-  // Podpora pro 'pass' i 'password' z HTML formuláře
-  const username = req.body.username;
-  const userPassword = req.body.pass || req.body.password;
+  const username = req.body?.username;
+  const password = req.body?.password || req.body?.pass;
 
-  if (!username || !userPassword) {
-    return res.send('Please fill in all fields.');
+  if (!username || !password) {
+    return res.status(400).send('Please enter both username and password.');
   }
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-    const account = result.rows[0];
+    const uRes = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    const user = uRes.rows[0];
 
-    if (!account) {
+    if (user && await bcrypt.compare(password, user.password)) {
+      req.session.user = { id: user.id, username: user.username };
+      req.session.isAdmin = user.is_admin || false;
+      return res.redirect('/');
+    } else {
       return res.send('Invalid username or password.');
     }
-
-    const match = await bcrypt.compare(userPassword, account.password);
-    if (match) {
-      req.session.user = { 
-        id: account.id, 
-        username: account.username, 
-        tag: account.tag, 
-        tag_color: account.tag_color 
-      };
-      res.redirect('/');
-    } else {
-      res.send('Invalid username or password.');
-    }
   } catch (err) {
-    res.status(500).send('Login error: ' + err.message);
+    console.error(err);
+    res.status(500).send('Login error');
   }
 });
 
