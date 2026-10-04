@@ -12,7 +12,7 @@ const pool = new Pool({
 });
 
 const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
-const ALLOWED_COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'pink', 'black', 'grey', 'white'];
+const ALLOWED_COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'pink', 'black', 'grey', 'white', 'gold', 'lime', 'brown', 'lightblue'];
 
 function filterBadWords(text) {
   if (!text) return text;
