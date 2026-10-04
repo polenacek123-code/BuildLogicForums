@@ -1,25 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Profile: <%= profileUser.username %></title></head>
+<head>
+  <meta charset="UTF-8"><title>Profile: <%= profileUser.username %></title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; }
+    .card { background: white; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto 20px auto; }
+    .badge { background-color: #e0e7ff; color: #3730a3; font-size: 0.85rem; padding: 3px 10px; border-radius: 12px; font-weight: 700; }
+    a { color: #2563eb; text-decoration: none; }
+  </style>
+</head>
 <body>
-  <a href="/">← Back to Forum</a>
-  <h1>User Profile: <%= profileUser.username %></h1>
-  <p>Joined on: <%= profileUser.created_at %></p>
+  <div class="card">
+    <a href="/">← Back to Forum</a>
+    <h1>
+      User: <%= profileUser.username %>
+      <% if (profileUser.tag) { %><span class="badge"><%= profileUser.tag %></span><% } %>
+    </h1>
+    <p>Joined on: <%= profileUser.created_at %></p>
+  </div>
 
-  <hr>
+  <div class="card">
+    <h2>Questions (<%= questions.length %>)</h2>
+    <ul>
+      <% questions.forEach(q => { %>
+        <li><a href="/questions/<%= q.id %>"><%= q.title %></a></li>
+      <% }) %>
+    </ul>
 
-  <h2>Questions Posted (<%= questions.length %>)</h2>
-  <ul>
-    <% questions.forEach(q => { %>
-      <li><a href="/questions/<%= q.id %>"><%= q.title %></a></li>
-    <% }) %>
-  </ul>
-
-  <h2>Answers Given (<%= answers.length %>)</h2>
-  <ul>
-    <% answers.forEach(a => { %>
-      <li>On question <a href="/questions/<%= a.question_id %>"><%= a.question_title %></a>: "<%= a.body %>"</li>
-    <% }) %>
-  </ul>
+    <h2>Answers (<%= answers.length %>)</h2>
+    <ul>
+      <% answers.forEach(a => { %>
+        <li>On <a href="/questions/<%= a.question_id %>"><%= a.question_title %></a>: "<%= a.body %>"</li>
+      <% }) %>
+    </ul>
+  </div>
 </body>
 </html>
