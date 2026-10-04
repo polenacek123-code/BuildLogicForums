@@ -8,37 +8,15 @@
     body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; color: #1e293b; }
     .container { max-width: 800px; margin: 0 auto; }
     .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .tag-badge { padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; border: 1px solid currentColor; }
+    .tag-badge { padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; border: 1px solid currentColor; display: inline-block; margin-left: 5px; }
     .accepted-badge { background: #10b981; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; }
     .accepted-card { border: 2px solid #10b981; }
-    .vote-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-weight: bold; }
+    .vote-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: bold; }
+    .vote-btn:hover { background: #e2e8f0; }
     a { color: #2563eb; text-decoration: none; }
     .delete-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.85rem; }
-  .mention-link {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.mention-link:hover {
-  text-decoration: underline;
-  background: rgba(59, 130, 246, 0.2);
-}
-
-.question-link {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.question-link:hover {
-  text-decoration: underline;
-  background: rgba(16, 185, 129, 0.2);
-}
+    .mention-link { color: #3b82f6; background: rgba(59, 130, 246, 0.1); padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+    .question-link { color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 2px 5px; border-radius: 4px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -47,17 +25,21 @@
     
     <!-- Question Detail -->
     <div class="card" style="margin-top: 15px;">
-      <div style="font-size: 1.05rem; line-height: 1.6;"><%- formatPostContent(question.body) %></div>
-        <form action="/vote" method="POST" style="text-align:center;">
+      <div style="display: flex; gap: 20px; align-items: flex-start;">
+        
+        <!-- Left Side: Upvote Button -->
+        <form action="/vote" method="POST" style="margin: 0;">
           <input type="hidden" name="target_type" value="question">
           <input type="hidden" name="target_id" value="<%= question.id %>">
           <input type="hidden" name="question_id" value="<%= question.id %>">
           <button type="submit" class="vote-btn">▲ <%= question.upvotes || 0 %></button>
         </form>
 
-        <div style="flex:1;">
-          <h1 style="margin:0 0 10px 0;"><%= question.title %></h1>
-          <p style="margin:0 0 15px 0; font-size:0.85rem; color:#64748b;">
+        <!-- Right Side: Content -->
+        <div style="flex: 1;">
+          <h1 style="margin: 0 0 8px 0; font-size: 1.8rem;"><%= question.title %></h1>
+          
+          <div style="margin-bottom: 15px; font-size: 0.9rem; color: #64748b;">
             Asked by <a href="/user/<%= question.username %>"><strong><%= question.username %></strong></a>
             <% if (question.tag) { %>
               <span class="tag-badge" style="color: <%= question.tag_color || '#3b82f6' %>;"><%= question.tag %></span>
@@ -69,41 +51,43 @@
                 <button type="submit" class="delete-btn" onclick="return confirm('Delete question?')">Delete Question</button>
               </form>
             <% } %>
-          </p>
+          </div>
 
-          <!-- Render body with /colortext -->
-          <div style="font-size: 1.05rem; line-height: 1.6;"><%- parseColorText(question.body) %></div>
+          <!-- Question Body Rendered Once -->
+          <div style="font-size: 1.05rem; line-height: 1.6; color: #334155;">
+            <%- formatPostContent(question.body) %>
+          </div>
         </div>
+
       </div>
     </div>
 
-    <!-- Answers List -->
+    <!-- Answers Section -->
     <div class="card">
       <h3>Answers (<%= answers.length %>)</h3>
       <% answers.forEach(a => { %>
-        <div class="card <%= question.accepted_answer_id == a.id ? 'accepted-card' : '' %>" style="padding: 15px; margin-bottom: 10px;">
-          <div style="display:flex; gap:15px; align-items:flex-start;">
+        <div class="card <%= question.accepted_answer_id == a.id ? 'accepted-card' : '' %>" style="padding: 15px; margin-bottom: 12px; background: #fafafa;">
+          <div style="display: flex; gap: 15px; align-items: flex-start;">
             
-            <form action="/vote" method="POST" style="text-align:center;">
+            <form action="/vote" method="POST" style="margin: 0;">
               <input type="hidden" name="target_type" value="answer">
               <input type="hidden" name="target_id" value="<%= a.id %>">
               <input type="hidden" name="question_id" value="<%= question.id %>">
               <button type="submit" class="vote-btn">▲ <%= a.upvotes || 0 %></button>
             </form>
 
-            <div style="flex:1;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <div>
                   <a href="/user/<%= a.username %>"><strong><%= a.username %></strong></a>
                   <% if (a.tag) { %>
                     <span class="tag-badge" style="color: <%= a.tag_color || '#3b82f6' %>;"><%= a.tag %></span>
                   <% } %>
                   <% if (question.accepted_answer_id == a.id) { %>
-                    <span class="accepted-badge">✓ Accepted Answer</span>
+                    <span class="accepted-badge" style="margin-left: 8px;">✓ Accepted Answer</span>
                   <% } %>
                 </div>
 
-                <!-- Accept Answer Button (Author or Mod) -->
                 <% if ((user && user.id === question.user_id) || isAdmin) { %>
                   <form action="/questions/<%= question.id %>/accept-answer" method="POST" style="display:inline;">
                     <input type="hidden" name="answer_id" value="<%= a.id %>">
@@ -114,17 +98,17 @@
                 <% } %>
               </div>
 
-              <!-- Answer body with /colortext -->
-              <div><%- formatPostContent(a.body) %></div>
+              <div style="line-height: 1.5;"><%- formatPostContent(a.body) %></div>
 
               <% if ((user && user.id === a.user_id) || isAdmin) { %>
-                <form action="/answers/remove" method="POST" style="margin-top:8px;">
+                <form action="/answers/remove" method="POST" style="margin-top: 8px;">
                   <input type="hidden" name="answer_id" value="<%= a.id %>">
                   <input type="hidden" name="question_id" value="<%= question.id %>">
                   <button type="submit" class="delete-btn" onclick="return confirm('Delete answer?')">Delete Answer</button>
                 </form>
               <% } %>
             </div>
+
           </div>
         </div>
       <% }) %>
