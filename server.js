@@ -15,6 +15,39 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// --- SUPABASE & MULTER CONFIG (PRO OBRÁZKY) ---
+const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+let supabase = null;
+
+if (SUPABASE_URL && SUPABASE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+  console.warn('⚠️ Supabase URL/KEY missing in environment variables!');
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
+  }
+});
+
+function parseImages(text) {
+  if (!text) return text;
+  const regex = /\/img\s+"([^"]+)"/g;
+  return text.replace(regex, '<img src="$1" style="max-width:100%; height:auto; border-radius:8px; margin:10px 0; display:block;" alt="User Uploaded Image">');
+}
+// ----------------------------------------------
+
 const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
 const ALLOWED_COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'pink', 'black', 'grey', 'white', 'gold', 'lime', 'brown', 'lightblue', 'skyblue', 'maroon'];
 
@@ -44,16 +77,7 @@ function parseQuestionLinks(text) {
   return text.replace(regex, '<a href="/questions/$1" class="question-link">#$1</a>');
 }
 
-// Spojená funkce pro kompletní formátování textu
-function formatPostContent(text) {
-  if (!text) return text;
-  let formatted = parseColorText(text);
-  formatted = parseMentions(formatted);
-  formatted = parseQuestionLinks(formatted);
-  return formatted;
-}
-
-// Funkce pro prevod /colortext "barva" "text" na HTML
+// Funkce pro převod /colortext "barva" "text" na HTML
 function parseColorText(text) {
   if (!text) return text;
   const regex = /\/colortext\s+"([^"]+)"\s+"([^"]+)"/g;
@@ -65,6 +89,16 @@ function parseColorText(text) {
     }
     return match;
   });
+}
+
+// Spojená funkce pro kompletní formátování textu (včetně obrázků)
+function formatPostContent(text) {
+  if (!text) return text;
+  let formatted = parseColorText(text);
+  formatted = parseMentions(formatted);
+  formatted = parseQuestionLinks(formatted);
+  formatted = parseImages(formatted); // Přidáno zpracování /img "URL"
+  return formatted;
 }
 
 async function initDb() {
@@ -80,19 +114,19 @@ async function initDb() {
       );
     `);
 
-      // Přidání sloupce pro accepted answer do otázek
-  await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS accepted_answer_id INTEGER DEFAULT NULL;`);
+    // Přidání sloupce pro accepted answer do otázek
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS accepted_answer_id INTEGER DEFAULT NULL;`);
 
-  // Tabulka pro sledování upvotů (aby každý mohol hlasovat jen jednou)
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS votes (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      target_type VARCHAR(20) NOT NULL, -- 'question' nebo 'answer'
-      target_id INTEGER NOT NULL,
-      UNIQUE(user_id, target_type, target_id)
-    );
-  `);
+    // Tabulka pro sledování upvotů (aby každý mohol hlasovat jen jednou)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS votes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        target_type VARCHAR(20) NOT NULL, -- 'question' nebo 'answer'
+        target_id INTEGER NOT NULL,
+        UNIQUE(user_id, target_type, target_id)
+      );
+    `);
 
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag_color VARCHAR(50) DEFAULT 'blue';`);
@@ -130,7 +164,7 @@ app.use(session({
   cookie: {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 dní v milisekundách
     httpOnly: true, // Zvyšuje bezpečnost proti XSS
-    secure: process.env.NODE_NODE_ENV === 'production' // Nastaví HTTPS v produkci
+    secure: process.env.NODE_ENV === 'production' // Nastaví HTTPS v produkci
   }
 }));
 
@@ -140,7 +174,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAdmin = req.session.isAdmin || false;
-  res.locals.formatPostContent = formatPostContent; // <-- Zde nahradit/přidat místo parseColorText
+  res.locals.formatPostContent = formatPostContent;
   next();
 });
 
