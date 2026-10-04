@@ -241,27 +241,34 @@ app.post('/login', async (req, res) => {
   const password = req.body?.pass || req.body?.password;
 
   if (!username || !password) {
-    return res.status(400).send('Zadejte uživatelské jméno a heslo.');
+    return res.status(400).send('Please enter both username and password.');
   }
 
   try {
     const uRes = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = uRes.rows[0];
 
-    // Pokud uživatel existuje a heslo souhlasí
     if (user && await bcrypt.compare(password, user.password)) {
+      // 1. Uložíme uživatele do session
       req.session.user = { id: user.id, username: user.username };
-      // Bezpečné načtení isAdmin (pokud sloupec is_admin neexistuje, nastaví false)
       req.session.isAdmin = user.is_admin ? true : false;
       
-      console.log('Přihlášení úspěšné pro:', user.username);
-      return res.redirect('/');
+      // 2. Vynutíme uložení session PŘED přesměrováním
+      return req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).send('Session error.');
+        }
+        console.log('Session saved successfully for:', user.username);
+        return res.redirect('/');
+      });
+
     } else {
-      return res.send('Nesprávné uživatelské jméno nebo heslo.');
+      return res.send('Invalid username or password.');
     }
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).send('Chyba při přihlašování: ' + err.message);
+    return res.status(500).send('Login error occurred: ' + err.message);
   }
 });
 // Route pro Upvote (Otázka i Odpověď)
