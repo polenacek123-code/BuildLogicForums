@@ -121,9 +121,14 @@ initDb();
 
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: 'build-logic-super-secret-key-12345',
+  secret: 'secret-key-for-cookies', // Tvá stávající secret hodnota
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 30 * 24 * 60 * 60 * 2000, // 30 dní v milisekundách
+    httpOnly: true, // Zvyšuje bezpečnost proti XSS
+    secure: process.env.NODE_NODE_ENV === 'production' // Nastaví HTTPS v produkci
+  }
 }));
 
 app.set('view engine', 'ejs');
