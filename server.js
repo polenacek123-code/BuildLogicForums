@@ -119,7 +119,6 @@ async function initDb() {
 }
 initDb();
 
-const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 
 app.use(express.urlencoded({ extended: true }));
