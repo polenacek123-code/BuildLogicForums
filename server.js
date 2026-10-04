@@ -235,8 +235,9 @@ app.post('/register', async (req, res) => {
 
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
+  // Bezpečné přečtení dat z req.body (podpora pro name="pass" i name="password")
   const username = req.body?.username;
-  const password = req.body?.password || req.body?.pass;
+  const password = req.body?.pass || req.body?.password;
 
   if (!username || !password) {
     return res.status(400).send('Please enter both username and password.');
@@ -254,8 +255,8 @@ app.post('/login', async (req, res) => {
       return res.send('Invalid username or password.');
     }
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Login error');
+    console.error('Login error:', err);
+    return res.status(500).send('Login error occurred.');
   }
 });
 
