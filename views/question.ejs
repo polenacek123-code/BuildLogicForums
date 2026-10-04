@@ -47,7 +47,7 @@
     
     <!-- Question Detail -->
     <div class="card" style="margin-top: 15px;">
-      <div style="display:flex; gap:15px; align-items:flex-start;">
+      <div style="font-size: 1.05rem; line-height: 1.6;"><%- formatPostContent(question.body) %></div>
         <form action="/vote" method="POST" style="text-align:center;">
           <input type="hidden" name="target_type" value="question">
           <input type="hidden" name="target_id" value="<%= question.id %>">
