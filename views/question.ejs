@@ -115,7 +115,7 @@
               </div>
 
               <!-- Answer body with /colortext -->
-              <div><%- parseColorText(a.body) %></div>
+              <div><%- formatPostContent(a.body) %></div>
 
               <% if ((user && user.id === a.user_id) || isAdmin) { %>
                 <form action="/answers/remove" method="POST" style="margin-top:8px;">
