@@ -6,15 +6,12 @@ const path = require('path');
 
 const app = express();
 
-// Připojení k PostgreSQL databázi na Supabase
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Seznam anglických sprostých slov pro filtr
 const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick', 'motmot', 'nigger', 'nigga', 'idiot', 'dumbass', 'shitty', 'ass', 'sex', '67'];
-
 function filterBadWords(text) {
   if (!text) return text;
   let filtered = text;
@@ -25,7 +22,7 @@ function filterBadWords(text) {
   return filtered;
 }
 
-// Inicializace databázových tabulek v PostgreSQL
+// Inicializace tabulek + automatické přidání sloupečku 'tag'
 async function initDb() {
   try {
     await pool.query(`
@@ -33,8 +30,14 @@ async function initDb() {
         id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
+        tag VARCHAR(100) DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Pro případ, že tabulka už existovala, zkusíme přidat sloupeček 'tag'
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';
     `);
 
     await pool.query(`
@@ -56,9 +59,9 @@ async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log('PostgreSQL Tables ready.');
+    console.log('PostgreSQL Tables & Schema ready.');
   } catch (err) {
-    console.error('Error initializing database tables:', err);
+    console.error('Error initializing database:', err);
   }
 }
 initDb();
@@ -79,7 +82,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Anti-Spam Cooldown (15s)
 function checkCooldown(req, res, next) {
   const now = Date.now();
   const lastPost = req.session.lastPostTime || 0;
@@ -91,12 +93,12 @@ function checkCooldown(req, res, next) {
   next();
 }
 
-// Hlavní stránka + Vyhledávání
+// Hlavní stránka
 app.get('/', async (req, res) => {
   const search = req.query.search || '';
   try {
     let query = `
-      SELECT q.*, u.username, COUNT(a.id) as answer_count 
+      SELECT q.*, u.username, u.tag as user_tag, COUNT(a.id) as answer_count 
       FROM questions q 
       LEFT JOIN users u ON q.user_id = u.id 
       LEFT JOIN answers a ON q.id = a.question_id
@@ -108,7 +110,7 @@ app.get('/', async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    query += ` GROUP BY q.id, u.username ORDER BY q.created_at DESC`;
+    query += ` GROUP BY q.id, u.username, u.tag ORDER BY q.created_at DESC`;
 
     const result = await pool.query(query, params);
     res.render('index', { questions: result.rows || [], search });
@@ -122,22 +124,15 @@ app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
   const { username, password, confirm_password } = req.body;
 
-  if (!username || !password || !confirm_password) {
-    return res.send('Please fill in all fields.');
-  }
-
-  if (password !== confirm_password) {
-    return res.send('Passwords do not match!');
-  }
+  if (!username || !password || !confirm_password) return res.send('Please fill in all fields.');
+  if (password !== confirm_password) return res.send('Passwords do not match!');
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, hashedPassword]);
     res.redirect('/login');
   } catch (err) {
-    if (err.code === '23505') {
-      return res.send('Username is already taken.');
-    }
+    if (err.code === '23505') return res.send('Username is already taken.');
     res.status(500).send('Error during registration: ' + err.message);
   }
 });
@@ -146,16 +141,14 @@ app.post('/register', async (req, res) => {
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
-
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
-
     if (!user) return res.send('Invalid username or password.');
 
     const match = await bcrypt.compare(password, user.password);
     if (match) {
-      req.session.user = { id: user.id, username: user.username };
+      req.session.user = { id: user.id, username: user.username, tag: user.tag };
       res.redirect('/');
     } else {
       res.send('Invalid username or password.');
@@ -165,11 +158,10 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Admin Portal
+// Admin
 app.get('/admin', (req, res) => res.render('admin_login'));
 app.post('/admin', (req, res) => {
-  const { admin_password } = req.body;
-  if (admin_password === 'ForumModeration75') {
+  if (req.body.admin_password === 'ForumModeration75') {
     req.session.isAdmin = true;
     res.redirect('/admin/dashboard');
   } else {
@@ -177,12 +169,10 @@ app.post('/admin', (req, res) => {
   }
 });
 
-// Admin Dashboard
 app.get('/admin/dashboard', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-
   try {
-    const usersRes = await pool.query('SELECT id, username, created_at FROM users ORDER BY id ASC');
+    const usersRes = await pool.query('SELECT id, username, tag, created_at FROM users ORDER BY id ASC');
     const questionsRes = await pool.query('SELECT q.id, q.title, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id ORDER BY q.id DESC');
     res.render('admin_dashboard', { users: usersRes.rows || [], questions: questionsRes.rows || [] });
   } catch (err) {
@@ -190,94 +180,78 @@ app.get('/admin/dashboard', async (req, res) => {
   }
 });
 
-// Admin Akce
+// Admin - Nastavení tagu/odznaku uživateli
+app.post('/admin/set-tag', async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { user_id, tag } = req.body;
+  await pool.query('UPDATE users SET tag = $1 WHERE id = $2', [tag.trim(), user_id]);
+  res.redirect('/admin/dashboard');
+});
+
 app.post('/admin/delete-question', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const { question_id } = req.body;
-  await pool.query('DELETE FROM questions WHERE id = $1', [question_id]);
+  await pool.query('DELETE FROM questions WHERE id = $1', [req.body.question_id]);
   res.redirect('/admin/dashboard');
 });
 
 app.post('/admin/delete-answer', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const { answer_id, question_id } = req.body;
-  await pool.query('DELETE FROM answers WHERE id = $1', [answer_id]);
-  res.redirect(`/questions/${question_id}`);
+  await pool.query('DELETE FROM answers WHERE id = $1', [req.body.answer_id]);
+  res.redirect(`/questions/${req.body.question_id}`);
 });
 
 app.post('/admin/delete-user', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const { user_id } = req.body;
-  await pool.query('DELETE FROM users WHERE id = $1', [user_id]);
+  await pool.query('DELETE FROM users WHERE id = $1', [req.body.user_id]);
   res.redirect('/admin/dashboard');
 });
 
 app.post('/admin/reset-password', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const { user_id, new_password } = req.body;
-  const hashedPassword = await bcrypt.hash(new_password, 10);
-  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user_id]);
+  const hashedPassword = await bcrypt.hash(req.body.new_password, 10);
+  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.body.user_id]);
   res.redirect('/admin/dashboard');
 });
 
-// Odhlášení
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');
 });
 
-// Přidání otázky
 app.post('/questions', checkCooldown, async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   let { title, body } = req.body;
-
   title = filterBadWords(title);
   body = filterBadWords(body);
-
-  try {
-    await pool.query('INSERT INTO questions (title, body, user_id) VALUES ($1, $2, $3)', [title, body, req.session.user.id]);
-    res.redirect('/');
-  } catch (err) {
-    res.status(500).send('Error saving question: ' + err.message);
-  }
+  await pool.query('INSERT INTO questions (title, body, user_id) VALUES ($1, $2, $3)', [title, body, req.session.user.id]);
+  res.redirect('/');
 });
 
-// Detail otázky
 app.get('/questions/:id', async (req, res) => {
   try {
-    const qRes = await pool.query('SELECT q.*, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id WHERE q.id = $1', [req.params.id]);
+    const qRes = await pool.query('SELECT q.*, u.username, u.tag as user_tag FROM questions q LEFT JOIN users u ON q.user_id = u.id WHERE q.id = $1', [req.params.id]);
     const question = qRes.rows[0];
-
     if (!question) return res.status(404).send('Question not found.');
 
-    const aRes = await pool.query('SELECT a.*, u.username FROM answers a LEFT JOIN users u ON a.user_id = u.id WHERE a.question_id = $1 ORDER BY a.created_at ASC', [req.params.id]);
+    const aRes = await pool.query('SELECT a.*, u.username, u.tag as user_tag FROM answers a LEFT JOIN users u ON a.user_id = u.id WHERE a.question_id = $1 ORDER BY a.created_at ASC', [req.params.id]);
     res.render('question', { question, answers: aRes.rows || [] });
   } catch (err) {
     res.status(500).send('Error loading question: ' + err.message);
   }
 });
 
-// Odpověď
 app.post('/questions/:id/answers', checkCooldown, async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   let { body } = req.body;
-
   body = filterBadWords(body);
-
-  try {
-    await pool.query('INSERT INTO answers (question_id, user_id, body) VALUES ($1, $2, $3)', [req.params.id, req.session.user.id, body]);
-    res.redirect(`/questions/${req.params.id}`);
-  } catch (err) {
-    res.status(500).send('Error saving answer: ' + err.message);
-  }
+  await pool.query('INSERT INTO answers (question_id, user_id, body) VALUES ($1, $2, $3)', [req.params.id, req.session.user.id, body]);
+  res.redirect(`/questions/${req.params.id}`);
 });
 
-// Uživatelský profil
 app.get('/user/:username', async (req, res) => {
   try {
-    const uRes = await pool.query('SELECT id, username, created_at FROM users WHERE username = $1', [req.params.username]);
+    const uRes = await pool.query('SELECT id, username, tag, created_at FROM users WHERE username = $1', [req.params.username]);
     const profileUser = uRes.rows[0];
-
     if (!profileUser) return res.status(404).send('User not found.');
 
     const qRes = await pool.query('SELECT * FROM questions WHERE user_id = $1 ORDER BY created_at DESC', [profileUser.id]);
