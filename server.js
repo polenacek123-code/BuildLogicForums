@@ -450,6 +450,23 @@ app.post('/answers/remove', async (req, res) => {
   }
 });
 
+app.get('/users/search', async (req, res) => {
+  const query = req.query.q || '';
+  try {
+    let users = [];
+    if (query.trim()) {
+      const uRes = await pool.query(
+        'SELECT id, username, tag, tag_color, created_at FROM users WHERE username ILIKE $1 ORDER BY username ASC LIMIT 20',
+        [`%${query}%`]
+      );
+      users = uRes.rows;
+    }
+    res.render('user_search', { users, query });
+  } catch (err) {
+    res.status(500).send('Error searching users: ' + err.message);
+  }
+});
+
 // --- PROFIL ---
 app.get('/user/:username', async (req, res) => {
   try {
