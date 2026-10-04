@@ -236,7 +236,7 @@ console.log('--- TEST REGISTRACE ---', req.body); // <-- ZDE PŘIDEJ TENTO ŘÁD
 
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
-  // Použití optional chaining ?. zabrání padání serveru
+  console.log('--- TEST LOGIN ---', req.body);
   const username = req.body?.username;
   const password = req.body?.pass || req.body?.password;
 
@@ -248,19 +248,22 @@ app.post('/login', async (req, res) => {
     const uRes = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = uRes.rows[0];
 
+    // Pokud uživatel existuje a heslo souhlasí
     if (user && await bcrypt.compare(password, user.password)) {
       req.session.user = { id: user.id, username: user.username };
-      req.session.isAdmin = user.is_admin || false;
+      // Bezpečné načtení isAdmin (pokud sloupec is_admin neexistuje, nastaví false)
+      req.session.isAdmin = user.is_admin ? true : false;
+      
+      console.log('Přihlášení úspěšné pro:', user.username);
       return res.redirect('/');
     } else {
       return res.send('Nesprávné uživatelské jméno nebo heslo.');
     }
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).send('Chyba při přihlašování.');
+    return res.status(500).send('Chyba při přihlašování: ' + err.message);
   }
 });
-
 // Route pro Upvote (Otázka i Odpověď)
 app.post('/vote', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
