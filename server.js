@@ -24,6 +24,31 @@ function filterBadWords(text) {
   return filtered;
 }
 
+// Převod @username na odkaz do profilu
+function parseMentions(text) {
+  if (!text) return text;
+  // Najde @Slovo (podporuje písmena, čísla a podtržítka)
+  const regex = /@([a-zA-Z0-9_]+)/g;
+  return text.replace(regex, '<a href="/user/$1" class="mention-link">@$1</a>');
+}
+
+// Převod #ID na odkaz na otázku
+function parseQuestionLinks(text) {
+  if (!text) return text;
+  // Najde #123 (pouze čísla)
+  const regex = /#(\d+)/g;
+  return text.replace(regex, '<a href="/questions/$1" class="question-link">#$1</a>');
+}
+
+// Spojená funkce pro kompletní formátování textu
+function formatPostContent(text) {
+  if (!text) return text;
+  let formatted = parseColorText(text);
+  formatted = parseMentions(formatted);
+  formatted = parseQuestionLinks(formatted);
+  return formatted;
+}
+
 // Funkce pro prevod /colortext "barva" "text" na HTML
 function parseColorText(text) {
   if (!text) return text;
@@ -107,7 +132,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAdmin = req.session.isAdmin || false;
-  res.locals.parseColorText = parseColorText; // Zpřístupníme funkci v EJS šablonách
+  res.locals.formatPostContent = formatPostContent; // <-- Zde nahradit/přidat místo parseColorText
   next();
 });
 
