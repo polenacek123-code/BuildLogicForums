@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><title>Profile: <%= profileUser.username %></title>
+  <meta charset="UTF-8">
+  <title>Profile: <%= profileUser.username %></title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; }
     .card { background: white; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto 20px auto; }
     .badge { background-color: #e0e7ff; color: #3730a3; font-size: 0.85rem; padding: 3px 10px; border-radius: 12px; font-weight: 700; }
     a { color: #2563eb; text-decoration: none; }
+    input, button { padding: 8px 12px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; }
+    .danger-btn { background: #ef4444; }
   </style>
 </head>
 <body>
@@ -19,6 +23,28 @@
     </h1>
     <p>Joined on: <%= profileUser.created_at %></p>
   </div>
+
+  <% if (user && user.id === profileUser.id) { %>
+    <div class="card">
+      <h3>Account Settings</h3>
+      
+      <h4>Change Password</h4>
+      <form action="/user/change-password" method="POST">
+        <input type="password" name="current_password" placeholder="Current Password" required><br>
+        <input type="password" name="new_password" placeholder="New Password" required><br>
+        <button type="submit">Update Password</button>
+      </form>
+
+      <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+
+      <h4 style="color: #ef4444;">Delete Account</h4>
+      <form action="/user/delete-account" method="POST">
+        <p><small>Type your username <strong><%= user.username %></strong> to confirm deletion:</small></p>
+        <input type="text" name="confirm_username" placeholder="<%= user.username %>" required><br>
+        <button type="submit" class="danger-btn" onclick="return confirm('Are you sure? All your posts will be permanently deleted!')">Permanently Delete Account</button>
+      </form>
+    </div>
+  <% } %>
 
   <div class="card">
     <h2>Questions (<%= questions.length %>)</h2>
