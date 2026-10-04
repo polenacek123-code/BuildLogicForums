@@ -119,23 +119,14 @@ async function initDb() {
 }
 initDb();
 
-const pgSession = require('connect-pg-simple')(session);
-
-app.use(express.urlencoded({ extended: true }));
-// Konfigurace session s ukládáním do Supabase (PostgreSQL)
 app.use(session({
-  store: new pgSession({
-    pool: pool,                // Použije tvé stávající připojení k Supabase
-    tableName: 'user_sessions',// Název tabulky, kterou si modul sám vytvoří/použije
-    createTableIfMissing: true // Automaticky vytvoří tabulku v Supabase, pokud neexistuje
-  }),
-  secret: process.env.SESSION_SECRET || 'build-logic-secret-key-2026',
+  secret: 'vás_tajny_klic_zde', // Tvá stávající secret hodnota
   resave: false,
   saveUninitialized: false,
   cookie: {
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 dní v milisekundách
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production' // Pro HTTPS na Renderu
+    httpOnly: true, // Zvyšuje bezpečnost proti XSS
+    secure: process.env.NODE_NODE_ENV === 'production' // Nastaví HTTPS v produkci
   }
 }));
 
