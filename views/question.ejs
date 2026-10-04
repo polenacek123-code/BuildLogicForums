@@ -1,38 +1,48 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title><%= question.title %></title></head>
+<head>
+  <meta charset="UTF-8"><title><%= question.title %></title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; }
+    .card { background: white; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto 20px auto; }
+    .badge { background-color: #e0e7ff; color: #3730a3; font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 700; }
+    a { color: #2563eb; text-decoration: none; }
+  </style>
+</head>
 <body>
-  <a href="/">← Back to Forum</a>
-  <h1><%= question.title %></h1>
-  <p><em>Asked by <a href="/user/<%= question.username %>"><%= question.username %></a> on <%= question.created_at %></em></p>
-  <p><%= question.body %></p>
+  <div class="card">
+    <a href="/">← Back to Forum</a>
+    <h1><%= question.title %></h1>
+    <p><small>Asked by <a href="/user/<%= question.username %>"><%= question.username %></a> <% if (question.user_tag) { %><span class="badge"><%= question.user_tag %></span><% } %></small></p>
+    <p style="font-size: 1.1rem; line-height: 1.6;"><%= question.body %></p>
+  </div>
 
-  <hr>
+  <div class="card">
+    <h3>Answers</h3>
+    <ul style="list-style: none; padding: 0;">
+      <% answers.forEach(a => { %>
+        <li style="padding: 10px 0; border-bottom: 1px solid #eee;">
+          <a href="/user/<%= a.username %>"><strong><%= a.username %></strong></a>
+          <% if (a.user_tag) { %><span class="badge"><%= a.user_tag %></span><% } %>:
+          <span><%= a.body %></span>
+          <% if (isAdmin) { %>
+            <form action="/admin/delete-answer" method="POST" style="display:inline; float:right;">
+              <input type="hidden" name="answer_id" value="<%= a.id %>">
+              <input type="hidden" name="question_id" value="<%= question.id %>">
+              <button type="submit" style="color:red; cursor:pointer;">Delete</button>
+            </form>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
 
-  <h3>Answers</h3>
-  <ul>
-    <% answers.forEach(a => { %>
-      <li>
-        <a href="/user/<%= a.username %>"><strong><%= a.username %></strong></a>: <%= a.body %>
-        <% if (isAdmin) { %>
-          <form action="/admin/delete-answer" method="POST" style="display:inline; margin-left:10px;">
-            <input type="hidden" name="answer_id" value="<%= a.id %>">
-            <input type="hidden" name="question_id" value="<%= question.id %>">
-            <button type="submit" style="color:red;">Delete</button>
-          </form>
-        <% } %>
-      </li>
-    <% }) %>
-  </ul>
-
-  <% if (user) { %>
-    <h4>Post an Answer</h4>
-    <form action="/questions/<%= question.id %>/answers" method="POST">
-      <textarea name="body" placeholder="Write your answer..." required></textarea><br><br>
-      <button type="submit">Submit Answer</button>
-    </form>
-  <% } else { %>
-    <p><a href="/login">Log in</a> to reply.</p>
-  <% } %>
+    <% if (user) { %>
+      <form action="/questions/<%= question.id %>/answers" method="POST" style="margin-top: 20px;">
+        <textarea name="body" rows="3" placeholder="Write your answer..." required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;"></textarea><br><br>
+        <button type="submit" style="background:#2563eb; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;">Post Answer</button>
+      </form>
+    <% } %>
+  </div>
 </body>
 </html>
