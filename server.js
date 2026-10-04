@@ -125,28 +125,30 @@ function checkCooldown(req, res, next) {
 app.get('/', async (req, res) => {
   const search = req.query.search || '';
   try {
-    let qText = `
-      SELECT q.*, u.username, u.tag, u.tag_color, COUNT(a.id) as answer_count 
-      FROM questions q 
-      LEFT JOIN users u ON q.user_id = u.id 
-      LEFT JOIN answers a ON q.id = a.question_id
-    `;
-    let params = [];
+    const qRes = await pool.query(`
+      SELECT 
+        q.*, 
+        u.username, 
+        u.tag, 
+        u.tag_color,
+        (SELECT COUNT(*) FROM answers a WHERE a.question_id = q.id) as answer_count,
+        (SELECT COUNT(*) FROM votes v WHERE v.target_type = 'question' AND v.target_id = q.id) as upvotes
+      FROM questions q
+      LEFT JOIN users u ON q.user_id = u.id
+      WHERE q.title ILIKE $1 OR q.body ILIKE $1
+      ORDER BY q.created_at DESC
+    `, [`%${search}%`]);
 
-    if (search) {
-      qText += ` WHERE q.title ILIKE $1 OR q.body ILIKE $1`;
-      params.push(`%${search}%`);
-    }
-
-    qText += ` GROUP BY q.id, u.username, u.tag, u.tag_color ORDER BY q.created_at DESC`;
-
-    const result = await pool.query(qText, params);
-    res.render('index', { questions: result.rows || [], search });
+    res.render('index', { 
+      questions: qRes.rows || [], 
+      user: req.session.user || null,
+      isAdmin: req.session.isAdmin || false,
+      search 
+    });
   } catch (err) {
-    res.status(500).send("Database error: " + err.message);
+    res.status(500).send('Error loading forum: ' + err.message);
   }
 });
-
 // --- AUTENTIZACE ---
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
@@ -353,12 +355,43 @@ app.post('/questions', checkCooldown, async (req, res) => {
 
 app.get('/questions/:id', async (req, res) => {
   try {
-    const qRes = await pool.query('SELECT q.*, u.username, u.tag, u.tag_color FROM questions q LEFT JOIN users u ON q.user_id = u.id WHERE q.id = $1', [req.params.id]);
+    // Otázka + počet upvotů
+    const qRes = await pool.query(`
+      SELECT 
+        q.*, 
+        u.username, 
+        u.tag, 
+        u.tag_color,
+        (SELECT COUNT(*) FROM votes v WHERE v.target_type = 'question' AND v.target_id = q.id) as upvotes
+      FROM questions q 
+      LEFT JOIN users u ON q.user_id = u.id 
+      WHERE q.id = $1
+    `, [req.params.id]);
+
     const question = qRes.rows[0];
     if (!question) return res.status(404).send('Question not found.');
 
-    const aRes = await pool.query('SELECT a.*, u.username, u.tag, u.tag_color FROM answers a LEFT JOIN users u ON a.user_id = u.id WHERE a.question_id = $1 ORDER BY a.created_at ASC', [req.params.id]);
-    res.render('question', { question, answers: aRes.rows || [] });
+    // Odpovědi + počet upvotů
+    const aRes = await pool.query(`
+      SELECT 
+        a.*, 
+        u.username, 
+        u.tag, 
+        u.tag_color,
+        (SELECT COUNT(*) FROM votes v WHERE v.target_type = 'answer' AND v.target_id = a.id) as upvotes
+      FROM answers a 
+      LEFT JOIN users u ON a.user_id = u.id 
+      WHERE a.question_id = $1 
+      ORDER BY a.created_at ASC
+    `, [req.params.id]);
+
+    res.render('question', { 
+      question, 
+      answers: aRes.rows || [], 
+      user: req.session.user || null,
+      isAdmin: req.session.isAdmin || false,
+      parseColorText // Pomocná funkce pro /colortext
+    });
   } catch (err) {
     res.status(500).send('Error loading question: ' + err.message);
   }
