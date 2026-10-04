@@ -19,7 +19,7 @@ const pool = new Pool({
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_URL = process.env.DATABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 let supabase = null;
 
