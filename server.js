@@ -158,7 +158,7 @@ async function initDb() {
 initDb();
 
 app.use(session({
-  secret: 'vás_tajny_klic_zde', // Tvá stávající secret hodnota
+  secret: 'secret-key-wow-so-secret', // Tvá stávající secret hodnota
   resave: false,
   saveUninitialized: false,
   cookie: {
