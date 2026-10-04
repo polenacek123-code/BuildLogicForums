@@ -1,44 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>Build Logic Forum</title></head>
+<head>
+  <meta charset="UTF-8">
+  <title>UNOFFICIAL Build Logic Community Forum</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f4f6f9;
+      color: #1a1a1a;
+      margin: 0;
+      padding: 20px;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    .container {
+      max-width: 850px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    h1 { margin: 0; font-size: 1.8rem; }
+    .subtitle { color: #666; margin-top: 5px; font-size: 0.95rem; }
+    a { color: #2563eb; text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+    
+    input, textarea, button {
+      font-family: inherit;
+      padding: 10px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 6px;
+      margin-bottom: 12px;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      width: auto;
+    }
+    button:hover { background-color: #1d4ed8; }
+    .badge {
+      background-color: #e0e7ff;
+      color: #3730a3;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    /* Dark mode */
+    body.dark-mode { background-color: #0f172a; color: #f8fafc; }
+    body.dark-mode .card { background-color: #1e293b; box-shadow: none; }
+    body.dark-mode .subtitle { color: #94a3b8; }
+    body.dark-mode a { color: #38bdf8; }
+    body.dark-mode input, body.dark-mode textarea { background: #334155; color: white; border-color: #475569; }
+    body.dark-mode .badge { background-color: #312e81; color: #c7d2fe; }
+  </style>
+</head>
 <body>
-  <h1>UNOFFICIAL Build Logic Community Forum</h1>
-  <h2>Made by General_Michael75 (polenacek on discord)</h2>
-  <nav>
+  <div class="container">
+    <button onclick="toggleTheme()" style="float: right;">🌙 Toggle Dark</button>
+    <header>
+      <div>
+        <h1>UNOFFICIAL Build Logic Community Forum</h1>
+        <div class="subtitle">Made by General_Michael75 (polenacek on discord)</div>
+      </div>
+    </header>
+
+    <div class="card">
+      <nav>
+        <% if (user) { %>
+          Logged in as: <a href="/user/<%= user.username %>"><strong><%= user.username %></strong></a>
+          <% if (user.tag) { %><span class="badge"><%= user.tag %></span><% } %> | 
+          <a href="/logout">Logout</a>
+        <% } else { %>
+          <a href="/login">Login</a> | <a href="/register">Register</a>
+        <% } %>
+        <% if (isAdmin) { %> | <a href="/admin/dashboard" style="color:#ef4444;">Admin Dashboard</a><% } %>
+      </nav>
+    </div>
+
+    <div class="card">
+      <h3>Search Questions</h3>
+      <form action="/" method="GET" style="display:flex; gap: 10px;">
+        <input type="text" name="search" placeholder="Search questions..." value="<%= search %>" style="margin:0;">
+        <button type="submit" style="margin:0;">Search</button>
+      </form>
+    </div>
+
     <% if (user) { %>
-      Logged in as: <a href="/user/<%= user.username %>"><strong><%= user.username %></strong></a> | <a href="/logout">Logout</a>
-    <% } else { %>
-      <a href="/login">Login</a> | <a href="/register">Register</a>
+      <div class="card">
+        <h3>Ask a Question</h3>
+        <form action="/questions" method="POST">
+          <input type="text" name="title" placeholder="Question Title" required>
+          <textarea name="body" rows="4" placeholder="Describe your logic puzzle..." required></textarea>
+          <button type="submit">Post Question</button>
+        </form>
+      </div>
     <% } %>
-    <% if (isAdmin) { %> | <a href="/admin/dashboard" style="color:red;">Admin Dashboard</a><% } %>
-  </nav>
 
-  <hr>
+    <div class="card">
+      <h2>Recent Questions</h2>
+      <ul style="list-style: none; padding: 0;">
+        <% questions.forEach(q => { %>
+          <li style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
+            <a href="/questions/<%= q.id %>" style="font-size: 1.1rem;"><%= q.title %></a><br>
+            <small style="color: #64748b;">
+              Asked by: <a href="/user/<%= q.username %>"><%= q.username %></a>
+              <% if (q.user_tag) { %><span class="badge"><%= q.user_tag %></span><% } %>
+              | Answers: <%= q.answer_count %>
+            </small>
+          </li>
+        <% }) %>
+      </ul>
+    </div>
+  </div>
 
-  <h2>Search Questions</h2>
-  <form action="/" method="GET">
-    <input type="text" name="search" placeholder="Search questions..." value="<%= search %>">
-    <button type="submit">Search</button>
-    <% if (search) { %><a href="/">Clear Filter</a><% } %>
-  </form>
-
-  <% if (user) { %>
-    <h2>Ask a Question</h2>
-    <form action="/questions" method="POST">
-      <input type="text" name="title" placeholder="Question Title" required><br><br>
-      <textarea name="body" placeholder="Describe your logic puzzle..." required></textarea><br><br>
-      <button type="submit">Post Question</button>
-    </form>
-  <% } %>
-
-  <h2>Recent Questions</h2>
-  <ul>
-    <% questions.forEach(q => { %>
-      <li>
-        <a href="/questions/<%= q.id %>"><strong><%= q.title %></strong></a> 
-        (Asked by: <a href="/user/<%= q.username %>"><%= q.username %></a>, Answers: <%= q.answer_count %>)
-      </li>
-    <% }) %>
-  </ul>
+  <script>
+    function toggleTheme() {
+      document.body.classList.toggle('dark-mode');
+      localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+    }
+    if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
+  </script>
 </body>
 </html>
