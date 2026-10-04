@@ -277,6 +277,10 @@ app.get('/logout', (req, res) => {
   res.redirect('/');
 });
 
+// Přesměrování starých odkazů z /admin na /mod
+app.get('/admin', (req, res) => res.redirect('/mod'));
+app.get('/admin/dashboard', (req, res) => res.redirect('/mod/dashboard'));
+
 // --- OTÁZKY & ODPOVĚDI ---
 app.post('/questions', checkCooldown, async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
