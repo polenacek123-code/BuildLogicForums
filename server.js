@@ -51,6 +51,20 @@ async function initDb() {
       );
     `);
 
+      // Přidání sloupce pro accepted answer do otázek
+  await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS accepted_answer_id INTEGER DEFAULT NULL;`);
+
+  // Tabulka pro sledování upvotů (aby každý mohol hlasovat jen jednou)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS votes (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      target_type VARCHAR(20) NOT NULL, -- 'question' nebo 'answer'
+      target_id INTEGER NOT NULL,
+      UNIQUE(user_id, target_type, target_id)
+    );
+  `);
+
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag_color VARCHAR(50) DEFAULT 'blue';`);
 
@@ -182,6 +196,52 @@ app.post('/login', async (req, res) => {
     }
   } catch (err) {
     res.status(500).send('Login error: ' + err.message);
+  }
+});
+
+// Route pro Upvote (Otázka i Odpověď)
+app.post('/vote', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { target_type, target_id, question_id } = req.body;
+
+  try {
+    // Pokus o vložení hlasu
+    await pool.query(
+      'INSERT INTO votes (user_id, target_type, target_id) VALUES ($1, $2, $3)',
+      [req.session.user.id, target_type, target_id]
+    );
+  } catch (err) {
+    // Pokud už hlasoval, smažeme hlas (toggle / zrušení upvotu)
+    if (err.code === '23505') {
+      await pool.query(
+        'DELETE FROM votes WHERE user_id = $1 AND target_type = $2 AND target_id = $3',
+        [req.session.user.id, target_type, target_id]
+      );
+    }
+  }
+
+  res.redirect(question_id ? `/questions/${question_id}` : '/');
+});
+
+// Route pro Označení Accepted Answer (Autor otázky nebo Mod)
+app.post('/questions/:id/accept-answer', async (req, res) => {
+  if (!req.session.user && !req.session.isAdmin) return res.redirect('/login');
+  const questionId = req.params.id;
+  const { answer_id } = req.body;
+
+  try {
+    const qRes = await pool.query('SELECT user_id, accepted_answer_id FROM questions WHERE id = $1', [questionId]);
+    const question = qRes.rows[0];
+
+    // Povoleno pouze autorovi otázky nebo modovi/adminovi
+    if (req.session.isAdmin || (req.session.user && req.session.user.id === question.user_id)) {
+      // Pokud už byla vybraná stejná odpověď, odznačíme ji (toggle)
+      const newAccepted = question.accepted_answer_id == answer_id ? null : answer_id;
+      await pool.query('UPDATE questions SET accepted_answer_id = $1 WHERE id = $2', [newAccepted, questionId]);
+    }
+    res.redirect(`/questions/${questionId}`);
+  } catch (err) {
+    res.status(500).send('Error marking answer: ' + err.message);
   }
 });
 
