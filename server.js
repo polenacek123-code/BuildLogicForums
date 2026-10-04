@@ -11,7 +11,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
+const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick', 'ass', 'motherfucker', 'cunt', 'cund', '67', 'nigger', 'nigga', 'fu-ck', '6-7', 'shitty', 'idiot', 'dumbass'];
 
 function filterBadWords(text) {
   if (!text) return text;
