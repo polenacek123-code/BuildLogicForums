@@ -1,55 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><title>Admin Dashboard</title>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; background: #f8fafc; }
-    table { width: 100%; border-collapse: collapse; background: white; margin-bottom: 20px; }
-    th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
-    .badge { background-color: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 8px; font-size: 0.8rem; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background: #1e1e2e; color: #cdd6f4; padding: 20px; }
+    .card { background: #313244; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #45475a; }
+    input, button { padding: 6px 10px; border-radius: 4px; border: none; }
+    input { background: #45475a; color: white; }
+    button { background: #89b4fa; color: #11111b; font-weight: bold; cursor: pointer; }
+    .danger { background: #f38ba8; color: #11111b; }
+    a { color: #89b4fa; }
   </style>
 </head>
 <body>
-  <a href="/">← Back to Forum</a>
   <h1>Admin Dashboard</h1>
+  <a href="/">← Back to Forum</a>
 
-  <h2>Manage Users & Tags</h2>
-  <table>
-    <tr><th>ID</th><th>Username</th><th>Tag</th><th>Actions / Set Tag</th></tr>
-    <% users.forEach(u => { %>
+  <div class="card">
+    <h2>User Management</h2>
+    <table>
       <tr>
-        <td><%= u.id %></td>
-        <td><a href="/user/<%= u.username %>"><%= u.username %></a> <% if (u.tag) { %><span class="badge"><%= u.tag %></span><% } %></td>
-        <td><%= u.tag || 'None' %></td>
-        <td>
-          <!-- Nastavení Tagu -->
-          <form action="/admin/set-tag" method="POST" style="display:inline-block; margin-right: 15px;">
-            <input type="hidden" name="user_id" value="<%= u.id %>">
-            <input type="text" name="tag" placeholder="e.g. Creator, Verified" value="<%= u.tag || '' %>">
-            <button type="submit">Set Tag</button>
-          </form>
-
-          <!-- Smazat uživatele -->
-          <form action="/admin/delete-user" method="POST" style="display:inline-block;">
-            <input type="hidden" name="user_id" value="<%= u.id %>">
-            <button type="submit" onclick="return confirm('Delete user?')" style="color:red;">Delete</button>
-          </form>
-        </td>
+        <th>ID</th>
+        <th>Username</th>
+        <th>Tag</th>
+        <th>Set Tag</th>
+        <th>Reset Password</th>
+        <th>Action</th>
       </tr>
-    <% }) %>
-  </table>
+      <% users.forEach(u => { %>
+        <tr>
+          <td><%= u.id %></td>
+          <td><strong><%= u.username %></strong></td>
+          <td><%= u.tag || 'None' %></td>
+          <td>
+            <form action="/admin/set-tag" method="POST" style="display:inline;">
+              <input type="hidden" name="user_id" value="<%= u.id %>">
+              <input type="text" name="tag" placeholder="New Tag" value="<%= u.tag %>">
+              <button type="submit">Save</button>
+            </form>
+          </td>
+          <td>
+            <form action="/admin/reset-password" method="POST" style="display:inline;">
+              <input type="hidden" name="user_id" value="<%= u.id %>">
+              <input type="password" name="new_password" placeholder="New Password" required>
+              <button type="submit">Reset</button>
+            </form>
+          </td>
+          <td>
+            <form action="/admin/delete-user" method="POST" style="display:inline;">
+              <input type="hidden" name="user_id" value="<%= u.id %>">
+              <button type="submit" class="danger" onclick="return confirm('Delete user and all their content?')">Delete User</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </table>
+  </div>
 
-  <h2>Questions</h2>
-  <ul>
-    <% questions.forEach(q => { %>
-      <li>
-        <strong><%= q.title %></strong> (by <%= q.username %>)
-        <form action="/admin/delete-question" method="POST" style="display:inline;">
-          <input type="hidden" name="question_id" value="<%= q.id %>">
-          <button type="submit" onclick="return confirm('Delete?')">Delete</button>
-        </form>
-      </li>
-    <% }) %>
-  </ul>
+  <div class="card">
+    <h2>Questions Moderation</h2>
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Author</th>
+        <th>Action</th>
+      </tr>
+      <% questions.forEach(q => { %>
+        <tr>
+          <td><%= q.id %></td>
+          <td><a href="/questions/<%= q.id %>"><%= q.title %></a></td>
+          <td><%= q.username %></td>
+          <td>
+            <form action="/admin/delete-question" method="POST" style="display:inline;">
+              <input type="hidden" name="question_id" value="<%= q.id %>">
+              <button type="submit" class="danger" onclick="return confirm('Delete question?')">Delete Question</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </table>
+  </div>
 </body>
 </html>
