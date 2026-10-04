@@ -11,7 +11,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick', 'motmot', 'nigger', 'nigga', 'idiot', 'dumbass', 'shitty', 'ass', 'sex', '67'];
+const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
+
 function filterBadWords(text) {
   if (!text) return text;
   let filtered = text;
@@ -22,7 +23,6 @@ function filterBadWords(text) {
   return filtered;
 }
 
-// Inicializace tabulek + automatické přidání sloupečku 'tag'
 async function initDb() {
   try {
     await pool.query(`
@@ -35,10 +35,7 @@ async function initDb() {
       );
     `);
 
-    // Pro případ, že tabulka už existovala, zkusíme přidat sloupeček 'tag'
-    await pool.query(`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';
-    `);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS questions (
@@ -119,11 +116,10 @@ app.get('/', async (req, res) => {
   }
 });
 
-// Registrace
+// Registrace a Přihlášení
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
   const { username, password, confirm_password } = req.body;
-
   if (!username || !password || !confirm_password) return res.send('Please fill in all fields.');
   if (password !== confirm_password) return res.send('Passwords do not match!');
 
@@ -137,7 +133,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// Přihlášení
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -158,7 +153,44 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Admin
+// Správa vlastního účtu (Změna hesla & Smazání účtu)
+app.post('/user/change-password', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { current_password, new_password } = req.body;
+
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
+    const user = result.rows[0];
+
+    const match = await bcrypt.compare(current_password, user.password);
+    if (!match) return res.send('Current password is incorrect.');
+
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.session.user.id]);
+    res.redirect(`/user/${req.session.user.username}`);
+  } catch (err) {
+    res.status(500).send('Error changing password: ' + err.message);
+  }
+});
+
+app.post('/user/delete-account', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { confirm_username } = req.body;
+
+  if (confirm_username !== req.session.user.username) {
+    return res.send('Username confirmation does not match!');
+  }
+
+  try {
+    await pool.query('DELETE FROM users WHERE id = $1', [req.session.user.id]);
+    req.session.destroy();
+    res.redirect('/');
+  } catch (err) {
+    res.status(500).send('Error deleting account: ' + err.message);
+  }
+});
+
+// Admin Panel (Včetně resetu hesla administrátorem)
 app.get('/admin', (req, res) => res.render('admin_login'));
 app.post('/admin', (req, res) => {
   if (req.body.admin_password === 'ForumModeration75') {
@@ -180,7 +212,16 @@ app.get('/admin/dashboard', async (req, res) => {
   }
 });
 
-// Admin - Nastavení tagu/odznaku uživateli
+app.post('/admin/reset-password', async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { user_id, new_password } = req.body;
+  if (!new_password) return res.send('Password cannot be empty.');
+
+  const hashedPassword = await bcrypt.hash(new_password, 10);
+  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user_id]);
+  res.redirect('/admin/dashboard');
+});
+
 app.post('/admin/set-tag', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
   const { user_id, tag } = req.body;
@@ -194,22 +235,9 @@ app.post('/admin/delete-question', async (req, res) => {
   res.redirect('/admin/dashboard');
 });
 
-app.post('/admin/delete-answer', async (req, res) => {
-  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  await pool.query('DELETE FROM answers WHERE id = $1', [req.body.answer_id]);
-  res.redirect(`/questions/${req.body.question_id}`);
-});
-
 app.post('/admin/delete-user', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
   await pool.query('DELETE FROM users WHERE id = $1', [req.body.user_id]);
-  res.redirect('/admin/dashboard');
-});
-
-app.post('/admin/reset-password', async (req, res) => {
-  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const hashedPassword = await bcrypt.hash(req.body.new_password, 10);
-  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.body.user_id]);
   res.redirect('/admin/dashboard');
 });
 
@@ -218,6 +246,7 @@ app.get('/logout', (req, res) => {
   res.redirect('/');
 });
 
+// Otázky a Odpovědi
 app.post('/questions', checkCooldown, async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   let { title, body } = req.body;
@@ -240,6 +269,19 @@ app.get('/questions/:id', async (req, res) => {
   }
 });
 
+// Smazání vlastní otázky uživatelem
+app.post('/questions/delete', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { question_id } = req.body;
+
+  try {
+    await pool.query('DELETE FROM questions WHERE id = $1 AND user_id = $2', [question_id, req.session.user.id]);
+    res.redirect('/');
+  } catch (err) {
+    res.status(500).send('Error deleting question: ' + err.message);
+  }
+});
+
 app.post('/questions/:id/answers', checkCooldown, async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   let { body } = req.body;
@@ -248,6 +290,20 @@ app.post('/questions/:id/answers', checkCooldown, async (req, res) => {
   res.redirect(`/questions/${req.params.id}`);
 });
 
+// Smazání vlastní odpovědi uživatelem
+app.post('/answers/delete', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  const { answer_id, question_id } = req.body;
+
+  try {
+    await pool.query('DELETE FROM answers WHERE id = $1 AND user_id = $2', [answer_id, req.session.user.id]);
+    res.redirect(`/questions/${question_id}`);
+  } catch (err) {
+    res.status(500).send('Error deleting answer: ' + err.message);
+  }
+});
+
+// Uživatelský Profil
 app.get('/user/:username', async (req, res) => {
   try {
     const uRes = await pool.query('SELECT id, username, tag, created_at FROM users WHERE username = $1', [req.params.username]);
