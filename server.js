@@ -11,7 +11,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick', 'ass', 'motherfucker', 'cunt', 'cund', '67', 'nigger', 'nigga', 'fu-ck', '6-7', 'shitty', 'idiot', 'dumbass'];
+const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
+const ALLOWED_COLORS = ['red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'purple', 'pink', 'black', 'grey', 'white'];
 
 function filterBadWords(text) {
   if (!text) return text;
@@ -23,6 +24,20 @@ function filterBadWords(text) {
   return filtered;
 }
 
+// Funkce pro prevod /colortext "barva" "text" na HTML
+function parseColorText(text) {
+  if (!text) return text;
+  const regex = /\/colortext\s+"([^"]+)"\s+"([^"]+)"/g;
+  return text.replace(regex, (match, color, content) => {
+    const lowerColor = color.toLowerCase();
+    if (ALLOWED_COLORS.includes(lowerColor)) {
+      const extraStyle = lowerColor === 'white' ? 'background: #333; padding: 2px 4px; border-radius: 4px;' : '';
+      return `<span style="color: ${lowerColor}; ${extraStyle}">${content}</span>`;
+    }
+    return match;
+  });
+}
+
 async function initDb() {
   try {
     await pool.query(`
@@ -31,11 +46,13 @@ async function initDb() {
         username VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         tag VARCHAR(100) DEFAULT '',
+        tag_color VARCHAR(50) DEFAULT 'blue',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag_color VARCHAR(50) DEFAULT 'blue';`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS questions (
@@ -76,6 +93,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAdmin = req.session.isAdmin || false;
+  res.locals.parseColorText = parseColorText; // Zpřístupníme funkci v EJS šablonách
   next();
 });
 
@@ -89,13 +107,12 @@ function checkCooldown(req, res, next) {
   req.session.lastPostTime = now;
   next();
 }
-
-// Hlavní stránka
+// --- HLAVNÍ STRÁNKA & VYHLEDÁVÁNÍ ---
 app.get('/', async (req, res) => {
   const search = req.query.search || '';
   try {
-    let query = `
-      SELECT q.*, u.username, u.tag as user_tag, COUNT(a.id) as answer_count 
+    let qText = `
+      SELECT q.*, u.username, u.tag, u.tag_color, COUNT(a.id) as answer_count 
       FROM questions q 
       LEFT JOIN users u ON q.user_id = u.id 
       LEFT JOIN answers a ON q.id = a.question_id
@@ -103,142 +120,141 @@ app.get('/', async (req, res) => {
     let params = [];
 
     if (search) {
-      query += ` WHERE q.title ILIKE $1 OR q.body ILIKE $1`;
+      qText += ` WHERE q.title ILIKE $1 OR q.body ILIKE $1`;
       params.push(`%${search}%`);
     }
 
-    query += ` GROUP BY q.id, u.username, u.tag ORDER BY q.created_at DESC`;
+    qText += ` GROUP BY q.id, u.username, u.tag, u.tag_color ORDER BY q.created_at DESC`;
 
-    const result = await pool.query(query, params);
+    const result = await pool.query(qText, params);
     res.render('index', { questions: result.rows || [], search });
   } catch (err) {
     res.status(500).send("Database error: " + err.message);
   }
 });
 
-// Registrace a Přihlášení
+// --- AUTENTIZACE ---
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
-  const { username, password, confirm_password } = req.body;
-  if (!username || !password || !confirm_password) return res.send('Please fill in all fields.');
-  if (password !== confirm_password) return res.send('Passwords do not match!');
+  const { username, pass, confirm_pass } = req.body;
+  if (!username || !pass || !confirm_pass) return res.send('Fill all fields.');
+  if (pass !== confirm_pass) return res.send('Passwords do not match!');
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, hashedPassword]);
+    const hash = await bcrypt.hash(pass, 10);
+    await pool.query('INSERT INTO users (username, password) VALUES ($1, $2)', [username, hash]);
     res.redirect('/login');
   } catch (err) {
-    if (err.code === '23505') return res.send('Username is already taken.');
-    res.status(500).send('Error during registration: ' + err.message);
+    if (err.code === '23505') return res.send('Username taken.');
+    res.status(500).send('Registration error: ' + err.message);
   }
 });
 
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { username, pass } = req.body;
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-    const user = result.rows[0];
-    if (!user) return res.send('Invalid username or password.');
+    const account = result.rows[0];
+    if (!account) return res.send('Invalid credentials.');
 
-    const match = await bcrypt.compare(password, user.password);
+    const match = await bcrypt.compare(pass, account.password);
     if (match) {
-      req.session.user = { id: user.id, username: user.username, tag: user.tag };
+      req.session.user = { id: account.id, username: account.username, tag: account.tag, tag_color: account.tag_color };
       res.redirect('/');
     } else {
-      res.send('Invalid username or password.');
+      res.send('Invalid credentials.');
     }
   } catch (err) {
     res.status(500).send('Login error: ' + err.message);
   }
 });
 
-// Správa vlastního účtu (Změna hesla & Smazání účtu)
-app.post('/user/change-password', async (req, res) => {
+// --- UŽIVATELSKÁ NASTAVENÍ ---
+app.post('/user/update-pass', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const { current_password, new_password } = req.body;
+  const { current_pass, new_pass } = req.body;
 
   try {
     const result = await pool.query('SELECT * FROM users WHERE id = $1', [req.session.user.id]);
-    const user = result.rows[0];
+    const account = result.rows[0];
 
-    const match = await bcrypt.compare(current_password, user.password);
-    if (!match) return res.send('Current password is incorrect.');
+    const match = await bcrypt.compare(current_pass, account.password);
+    if (!match) return res.send('Current password wrong.');
 
-    const hashedPassword = await bcrypt.hash(new_password, 10);
-    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.session.user.id]);
+    const hash = await bcrypt.hash(new_pass, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hash, req.session.user.id]);
     res.redirect(`/user/${req.session.user.username}`);
   } catch (err) {
-    res.status(500).send('Error changing password: ' + err.message);
+    res.status(500).send('Error updating: ' + err.message);
   }
 });
 
-app.post('/user/delete-account', async (req, res) => {
+app.post('/user/remove-account', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const { confirm_username } = req.body;
-
-  if (confirm_username !== req.session.user.username) {
-    return res.send('Username confirmation does not match!');
-  }
+  if (req.body.confirm_name !== req.session.user.username) return res.send('Name mismatch.');
 
   try {
     await pool.query('DELETE FROM users WHERE id = $1', [req.session.user.id]);
     req.session.destroy();
     res.redirect('/');
   } catch (err) {
-    res.status(500).send('Error deleting account: ' + err.message);
+    res.status(500).send('Error removing account: ' + err.message);
   }
 });
-
-// Admin Panel (Včetně resetu hesla administrátorem)
-app.get('/admin', (req, res) => res.render('admin_login'));
-app.post('/admin', (req, res) => {
-  if (req.body.admin_password === 'ForumModeration75') {
+// --- MODERACE & ADMIN PANEL ---
+app.get('/mod', (req, res) => res.render('admin_login'));
+app.post('/mod', (req, res) => {
+  if (req.body.mod_pass === 'ForumModeration75') {
     req.session.isAdmin = true;
-    res.redirect('/admin/dashboard');
+    res.redirect('/mod/dashboard');
   } else {
-    res.send('Incorrect Admin Password.');
+    res.send('Incorrect Password.');
   }
 });
 
-app.get('/admin/dashboard', async (req, res) => {
+app.get('/mod/dashboard', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
   try {
-    const usersRes = await pool.query('SELECT id, username, tag, created_at FROM users ORDER BY id ASC');
-    const questionsRes = await pool.query('SELECT q.id, q.title, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id ORDER BY q.id DESC');
-    res.render('admin_dashboard', { users: usersRes.rows || [], questions: questionsRes.rows || [] });
+    const uRes = await pool.query('SELECT id, username, tag, tag_color, created_at FROM users ORDER BY id ASC');
+    const qRes = await pool.query('SELECT q.id, q.title, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id ORDER BY q.id DESC');
+    res.render('admin_dashboard', { users: uRes.rows || [], questions: qRes.rows || [] });
   } catch (err) {
-    res.status(500).send('Admin Error: ' + err.message);
+    res.status(500).send('Mod Error: ' + err.message);
   }
 });
 
-app.post('/admin/reset-password', async (req, res) => {
+// Reset hesla uživatele administrátorem
+app.post('/mod/reset-user-pass', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const { user_id, new_password } = req.body;
-  if (!new_password) return res.send('Password cannot be empty.');
+  const { user_id, new_pass } = req.body;
+  if (!new_pass) return res.send('Password cannot be empty.');
 
-  const hashedPassword = await bcrypt.hash(new_password, 10);
-  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user_id]);
-  res.redirect('/admin/dashboard');
+  const hash = await bcrypt.hash(new_pass, 10);
+  await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hash, user_id]);
+  res.redirect('/mod/dashboard');
 });
 
-app.post('/admin/set-tag', async (req, res) => {
+// Nastavení tagu a barvy administrátorem
+app.post('/mod/set-user-tag', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
-  const { user_id, tag } = req.body;
-  await pool.query('UPDATE users SET tag = $1 WHERE id = $2', [tag.trim(), user_id]);
-  res.redirect('/admin/dashboard');
+  const { user_id, tag, tag_color } = req.body;
+  
+  const selectedColor = ALLOWED_COLORS.includes(tag_color) ? tag_color : 'blue';
+  await pool.query('UPDATE users SET tag = $1, tag_color = $2 WHERE id = $3', [tag.trim(), selectedColor, user_id]);
+  res.redirect('/mod/dashboard');
 });
 
-app.post('/admin/delete-question', async (req, res) => {
+app.post('/mod/remove-question', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
   await pool.query('DELETE FROM questions WHERE id = $1', [req.body.question_id]);
-  res.redirect('/admin/dashboard');
+  res.redirect('/mod/dashboard');
 });
 
-app.post('/admin/delete-user', async (req, res) => {
+app.post('/mod/remove-user', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
   await pool.query('DELETE FROM users WHERE id = $1', [req.body.user_id]);
-  res.redirect('/admin/dashboard');
+  res.redirect('/mod/dashboard');
 });
 
 app.get('/logout', (req, res) => {
@@ -246,7 +262,7 @@ app.get('/logout', (req, res) => {
   res.redirect('/');
 });
 
-// Otázky a Odpovědi
+// --- OTÁZKY & ODPOVĚDI ---
 app.post('/questions', checkCooldown, async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   let { title, body } = req.body;
@@ -258,27 +274,24 @@ app.post('/questions', checkCooldown, async (req, res) => {
 
 app.get('/questions/:id', async (req, res) => {
   try {
-    const qRes = await pool.query('SELECT q.*, u.username, u.tag as user_tag FROM questions q LEFT JOIN users u ON q.user_id = u.id WHERE q.id = $1', [req.params.id]);
+    const qRes = await pool.query('SELECT q.*, u.username, u.tag, u.tag_color FROM questions q LEFT JOIN users u ON q.user_id = u.id WHERE q.id = $1', [req.params.id]);
     const question = qRes.rows[0];
     if (!question) return res.status(404).send('Question not found.');
 
-    const aRes = await pool.query('SELECT a.*, u.username, u.tag as user_tag FROM answers a LEFT JOIN users u ON a.user_id = u.id WHERE a.question_id = $1 ORDER BY a.created_at ASC', [req.params.id]);
+    const aRes = await pool.query('SELECT a.*, u.username, u.tag, u.tag_color FROM answers a LEFT JOIN users u ON a.user_id = u.id WHERE a.question_id = $1 ORDER BY a.created_at ASC', [req.params.id]);
     res.render('question', { question, answers: aRes.rows || [] });
   } catch (err) {
     res.status(500).send('Error loading question: ' + err.message);
   }
 });
 
-// Smazání vlastní otázky uživatelem
-app.post('/questions/delete', async (req, res) => {
+app.post('/questions/remove', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const { question_id } = req.body;
-
   try {
-    await pool.query('DELETE FROM questions WHERE id = $1 AND user_id = $2', [question_id, req.session.user.id]);
+    await pool.query('DELETE FROM questions WHERE id = $1 AND user_id = $2', [req.body.question_id, req.session.user.id]);
     res.redirect('/');
   } catch (err) {
-    res.status(500).send('Error deleting question: ' + err.message);
+    res.status(500).send('Error removing question: ' + err.message);
   }
 });
 
@@ -290,23 +303,20 @@ app.post('/questions/:id/answers', checkCooldown, async (req, res) => {
   res.redirect(`/questions/${req.params.id}`);
 });
 
-// Smazání vlastní odpovědi uživatelem
-app.post('/answers/delete', async (req, res) => {
+app.post('/answers/remove', async (req, res) => {
   if (!req.session.user) return res.redirect('/login');
-  const { answer_id, question_id } = req.body;
-
   try {
-    await pool.query('DELETE FROM answers WHERE id = $1 AND user_id = $2', [answer_id, req.session.user.id]);
-    res.redirect(`/questions/${question_id}`);
+    await pool.query('DELETE FROM answers WHERE id = $1 AND user_id = $2', [req.body.answer_id, req.session.user.id]);
+    res.redirect(`/questions/${req.body.question_id}`);
   } catch (err) {
-    res.status(500).send('Error deleting answer: ' + err.message);
+    res.status(500).send('Error removing answer: ' + err.message);
   }
 });
 
-// Uživatelský Profil
+// --- PROFIL ---
 app.get('/user/:username', async (req, res) => {
   try {
-    const uRes = await pool.query('SELECT id, username, tag, created_at FROM users WHERE username = $1', [req.params.username]);
+    const uRes = await pool.query('SELECT id, username, tag, tag_color, created_at FROM users WHERE username = $1', [req.params.username]);
     const profileUser = uRes.rows[0];
     if (!profileUser) return res.status(404).send('User not found.');
 
@@ -320,4 +330,4 @@ app.get('/user/:username', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Build Logic Forum is live on port ${PORT}`));
+app.listen(PORT, () => console.log(`Forum live on port ${PORT}`));
