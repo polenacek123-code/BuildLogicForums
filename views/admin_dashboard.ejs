@@ -50,7 +50,7 @@
               <input type="hidden" name="user_id" value="<%= u.id %>">
               <input type="text" name="tag" placeholder="Tag" value="<%= u.tag %>" style="width: 90px;">
               <select name="tag_color">
-                <% ['blue', 'red', 'orange', 'yellow', 'green', 'cyan', 'purple', 'pink', 'black', 'grey', 'white', 'gold', 'lime', 'brown', 'lightblue'].forEach(c => { %>
+                <% ['blue', 'red', 'orange', 'yellow', 'green', 'cyan', 'purple', 'pink', 'black', 'grey', 'white', 'gold', 'lime', 'brown', 'lightblue', 'skyblue'].forEach(c => { %>
                   <option value="<%= c %>" <%= u.tag_color === c ? 'selected' : '' %>><%= c %></option>
                 <% }) %>
               </select>
