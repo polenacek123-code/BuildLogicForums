@@ -1,58 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><title><%= question.title %></title>
+  <meta charset="UTF-8">
+  <title><%= question.title %></title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; }
-    .card { background: white; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto 20px auto; }
-    .badge { background-color: #e0e7ff; color: #3730a3; font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; font-weight: 700; }
+    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; color: #1e293b; }
+    .container { max-width: 800px; margin: 0 auto; }
+    .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .tag-badge { padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; border: 1px solid currentColor; }
+    .accepted-badge { background: #10b981; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 0.8rem; }
+    .accepted-card { border: 2px solid #10b981; }
+    .vote-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-weight: bold; }
     a { color: #2563eb; text-decoration: none; }
     .delete-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.85rem; }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="container">
     <a href="/">← Back to Forum</a>
-    <h1><%= question.title %></h1>
-    <p>
-      <small>Asked by <a href="/user/<%= question.username %>"><%= question.username %></a> <% if (question.user_tag) { %><span class="badge"><%= question.user_tag %></span><% } %></small>
-      <% if (user && user.id === question.user_id) { %>
-        <form action="/questions/delete" method="POST" style="display:inline; float:right;">
+    
+    <!-- Question Detail -->
+    <div class="card" style="margin-top: 15px;">
+      <div style="display:flex; gap:15px; align-items:flex-start;">
+        <form action="/vote" method="POST" style="text-align:center;">
+          <input type="hidden" name="target_type" value="question">
+          <input type="hidden" name="target_id" value="<%= question.id %>">
           <input type="hidden" name="question_id" value="<%= question.id %>">
-          <button type="submit" class="delete-btn" onclick="return confirm('Delete this question?')">Delete Question</button>
+          <button type="submit" class="vote-btn">▲ <%= question.upvotes || 0 %></button>
+        </form>
+
+        <div style="flex:1;">
+          <h1 style="margin:0 0 10px 0;"><%= question.title %></h1>
+          <p style="margin:0 0 15px 0; font-size:0.85rem; color:#64748b;">
+            Asked by <a href="/user/<%= question.username %>"><strong><%= question.username %></strong></a>
+            <% if (question.tag) { %>
+              <span class="tag-badge" style="color: <%= question.tag_color || '#3b82f6' %>;"><%= question.tag %></span>
+            <% } %>
+            
+            <% if ((user && user.id === question.user_id) || isAdmin) { %>
+              <form action="/questions/remove" method="POST" style="display:inline; float:right;">
+                <input type="hidden" name="question_id" value="<%= question.id %>">
+                <button type="submit" class="delete-btn" onclick="return confirm('Delete question?')">Delete Question</button>
+              </form>
+            <% } %>
+          </p>
+
+          <!-- Render body with /colortext -->
+          <div style="font-size: 1.05rem; line-height: 1.6;"><%- parseColorText(question.body) %></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Answers List -->
+    <div class="card">
+      <h3>Answers (<%= answers.length %>)</h3>
+      <% answers.forEach(a => { %>
+        <div class="card <%= question.accepted_answer_id == a.id ? 'accepted-card' : '' %>" style="padding: 15px; margin-bottom: 10px;">
+          <div style="display:flex; gap:15px; align-items:flex-start;">
+            
+            <form action="/vote" method="POST" style="text-align:center;">
+              <input type="hidden" name="target_type" value="answer">
+              <input type="hidden" name="target_id" value="<%= a.id %>">
+              <input type="hidden" name="question_id" value="<%= question.id %>">
+              <button type="submit" class="vote-btn">▲ <%= a.upvotes || 0 %></button>
+            </form>
+
+            <div style="flex:1;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                <div>
+                  <a href="/user/<%= a.username %>"><strong><%= a.username %></strong></a>
+                  <% if (a.tag) { %>
+                    <span class="tag-badge" style="color: <%= a.tag_color || '#3b82f6' %>;"><%= a.tag %></span>
+                  <% } %>
+                  <% if (question.accepted_answer_id == a.id) { %>
+                    <span class="accepted-badge">✓ Accepted Answer</span>
+                  <% } %>
+                </div>
+
+                <!-- Accept Answer Button (Author or Mod) -->
+                <% if ((user && user.id === question.user_id) || isAdmin) { %>
+                  <form action="/questions/<%= question.id %>/accept-answer" method="POST" style="display:inline;">
+                    <input type="hidden" name="answer_id" value="<%= a.id %>">
+                    <button type="submit" style="background:#10b981; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:0.8rem;">
+                      <%= question.accepted_answer_id == a.id ? 'Unmark Accepted' : 'Mark as Accepted' %>
+                    </button>
+                  </form>
+                <% } %>
+              </div>
+
+              <!-- Answer body with /colortext -->
+              <div><%- parseColorText(a.body) %></div>
+
+              <% if ((user && user.id === a.user_id) || isAdmin) { %>
+                <form action="/answers/remove" method="POST" style="margin-top:8px;">
+                  <input type="hidden" name="answer_id" value="<%= a.id %>">
+                  <input type="hidden" name="question_id" value="<%= question.id %>">
+                  <button type="submit" class="delete-btn" onclick="return confirm('Delete answer?')">Delete Answer</button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      <% }) %>
+
+      <!-- Answer Form -->
+      <% if (user) { %>
+        <form action="/questions/<%= question.id %>/answers" method="POST" style="margin-top: 20px;">
+          <textarea name="body" rows="3" placeholder="Write your answer... (use /colortext &quot;green&quot; &quot;text&quot;)" required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;"></textarea><br><br>
+          <button type="submit" style="background:#2563eb; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;">Post Answer</button>
         </form>
       <% } %>
-    </p>
-    <p style="font-size: 1.1rem; line-height: 1.6;"><%= question.body %></p>
-  </div>
-
-  <div class="card">
-    <h3>Answers</h3>
-    <ul style="list-style: none; padding: 0;">
-      <% answers.forEach(a => { %>
-        <li style="padding: 10px 0; border-bottom: 1px solid #eee;">
-          <a href="/user/<%= a.username %>"><strong><%= a.username %></strong></a>
-          <% if (a.user_tag) { %><span class="badge"><%= a.user_tag %></span><% } %>:
-          <span><%= a.body %></span>
-          
-          <% if (user && user.id === a.user_id) { %>
-            <form action="/answers/delete" method="POST" style="display:inline; float:right;">
-              <input type="hidden" name="answer_id" value="<%= a.id %>">
-              <input type="hidden" name="question_id" value="<%= question.id %>">
-              <button type="submit" class="delete-btn" onclick="return confirm('Delete this answer?')">Delete</button>
-            </form>
-          <% } %>
-        </li>
-      <% }) %>
-    </ul>
-
-    <% if (user) { %>
-      <form action="/questions/<%= question.id %>/answers" method="POST" style="margin-top: 20px;">
-        <textarea name="body" rows="3" placeholder="Write your answer..." required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;"></textarea><br><br>
-        <button type="submit" style="background:#2563eb; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;">Post Answer</button>
-      </form>
-    <% } %>
+    </div>
   </div>
 </body>
 </html>
