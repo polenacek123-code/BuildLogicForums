@@ -219,6 +219,7 @@ app.get('/', async (req, res) => {
 // --- AUTENTIZACE ---
 app.get('/register', (req, res) => res.render('register'));
 app.post('/register', async (req, res) => {
+console.log('--- TEST REGISTRACE ---', req.body); // <-- ZDE PŘIDEJ TENTO ŘÁDEK
   const { username, pass, confirm_pass } = req.body;
   if (!username || !pass || !confirm_pass) return res.send('Fill all fields.');
   if (pass !== confirm_pass) return res.send('Passwords do not match!');
