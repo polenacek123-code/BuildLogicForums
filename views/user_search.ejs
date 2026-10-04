@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Search Users - Build Logic Forum</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; color: #1e293b; }
+    .container { max-width: 700px; margin: 0 auto; }
+    .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .tag-badge { padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; border: 1px solid currentColor; }
+    input { width: 70%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+    button { padding: 10px 20px; border-radius: 8px; background: #2563eb; color: white; border: none; cursor: pointer; }
+    a { color: #2563eb; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/">← Back to Forum</a>
+    <h2>Find Members</h2>
+
+    <div class="card">
+      <form action="/users/search" method="GET" style="display:flex; gap:10px;">
+        <input type="text" name="q" value="<%= query %>" placeholder="Search by username..." required>
+        <button type="submit">Search</button>
+      </form>
+    </div>
+
+    <% if (query) { %>
+      <h3>Search results for "<%= query %>":</h3>
+      <% if (users.length === 0) { %>
+        <p>No members found.</p>
+      <% } else { %>
+        <% users.forEach(u => { %>
+          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <a href="/user/<%= u.username %>" style="font-size:1.1rem; font-weight:bold;"><%= u.username %></a>
+              <% if (u.tag) { %>
+                <span class="tag-badge" style="color: <%= u.tag_color || '#3b82f6' %>;"><%= u.tag %></span>
+              <% } %>
+            </div>
+            <a href="/user/<%= u.username %>">View Profile →</a>
+          </div>
+        <% }) %>
+      <% } %>
+    <% } %>
+  </div>
+</body>
+</html>
