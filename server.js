@@ -6,6 +6,10 @@ const path = require('path');
 
 const app = express();
 
+// Middleware pro zpracování POST dat z formulářů a JSON
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
