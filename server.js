@@ -152,18 +152,33 @@ app.post('/register', async (req, res) => {
 
 app.get('/login', (req, res) => res.render('login'));
 app.post('/login', async (req, res) => {
-  const { username, pass } = req.body;
+  // Podpora pro 'pass' i 'password' z HTML formuláře
+  const username = req.body.username;
+  const userPassword = req.body.pass || req.body.password;
+
+  if (!username || !userPassword) {
+    return res.send('Please fill in all fields.');
+  }
+
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const account = result.rows[0];
-    if (!account) return res.send('Invalid credentials.');
 
-    const match = await bcrypt.compare(pass, account.password);
+    if (!account) {
+      return res.send('Invalid username or password.');
+    }
+
+    const match = await bcrypt.compare(userPassword, account.password);
     if (match) {
-      req.session.user = { id: account.id, username: account.username, tag: account.tag, tag_color: account.tag_color };
+      req.session.user = { 
+        id: account.id, 
+        username: account.username, 
+        tag: account.tag, 
+        tag_color: account.tag_color 
+      };
       res.redirect('/');
     } else {
-      res.send('Invalid credentials.');
+      res.send('Invalid username or password.');
     }
   } catch (err) {
     res.status(500).send('Login error: ' + err.message);
