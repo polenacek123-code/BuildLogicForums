@@ -149,41 +149,25 @@ function formatPostContent(text) {
 
 async function initDb() {
   try {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      username VARCHAR(255) UNIQUE NOT NULL,
-      password VARCHAR(255) NOT NULL,
-      tag VARCHAR(100) DEFAULT '',
-      tag_color VARCHAR(50) DEFAULT 'blue',
-      role VARCHAR(20) DEFAULT 'user',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
-  `);
-} catch (err) {
-  console.error("Error creating users table:", err);
-}
-    `);
-
-    // Přidání sloupce pro accepted answer do otázek
-    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS accepted_answer_id INTEGER DEFAULT NULL;`);
-
-    // Tabulka pro sledování upvotů (aby každý mohol hlasovat jen jednou)
+    // 1. Tabulka uživatelů
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS votes (
+      CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        target_type VARCHAR(20) NOT NULL, -- 'question' nebo 'answer'
-        target_id INTEGER NOT NULL,
-        UNIQUE(user_id, target_type, target_id)
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        tag VARCHAR(100) DEFAULT '',
+        tag_color VARCHAR(50) DEFAULT 'blue',
+        role VARCHAR(20) DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
+    // ALTER dotazy pro uživatele (pokud už tabulka existovala dříve)
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag VARCHAR(100) DEFAULT '';`);
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tag_color VARCHAR(50) DEFAULT 'blue';`);
 
+    // 2. Tabulka otázek
     await pool.query(`
       CREATE TABLE IF NOT EXISTS questions (
         id SERIAL PRIMARY KEY,
@@ -194,6 +178,10 @@ async function initDb() {
       );
     `);
 
+    // ALTER dotaz pro accepted answer
+    await pool.query(`ALTER TABLE questions ADD COLUMN IF NOT EXISTS accepted_answer_id INTEGER DEFAULT NULL;`);
+
+    // 3. Tabulka odpovědí
     await pool.query(`
       CREATE TABLE IF NOT EXISTS answers (
         id SERIAL PRIMARY KEY,
@@ -203,13 +191,25 @@ async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // 4. Tabulka hlasování
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS votes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        target_type VARCHAR(20) NOT NULL,
+        target_id INTEGER NOT NULL,
+        UNIQUE(user_id, target_type, target_id)
+      );
+    `);
+
     console.log('PostgreSQL Tables & Schema ready.');
   } catch (err) {
     console.error('Error initializing database:', err);
   }
 }
-initDb();
 
+initDb();
 // 1. Zásadní řádek pro Render (řekne Expressu, že běží za HTTPS proxy)
 app.set('trust proxy', 1);
 
