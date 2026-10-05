@@ -431,6 +431,7 @@ app.post('/user/update-tag', async (req, res) => {
 });
 
 // --- MODERACE & ADMIN PANEL ---
+// --- MODERACE & ADMIN PANEL ---
 app.get('/mod', (req, res) => res.render('admin_login'));
 app.post('/mod', (req, res) => {
   if (req.body.mod_pass === 'ForumModeration75') {
@@ -448,28 +449,29 @@ function isModerator(req, res, next) {
   res.status(403).send('Access denied: Moderator role required.');
 }
 
-app.get('/admin', isModerator, async (req, res) => {
-  // Načteme uživatele rozdělené podle rolí
-  const mods = await pool.query("SELECT * FROM users WHERE role = 'moderator'");
-  const helpers = await pool.query("SELECT * FROM users WHERE role = 'helper'");
-  const regularUsers = await pool.query("SELECT * FROM users WHERE role = 'user' OR role IS NULL");
-
-  res.render('admin', {
-    moderators: mods.rows,
-    helpers: helpers.rows,
-    users: regularUsers.rows
-  });
-});
-
 app.get('/mod/dashboard', async (req, res) => {
   if (!req.session.isAdmin) return res.status(403).send('Access Denied');
   try {
-    const uRes = await pool.query('SELECT id, username, tag, tag_color, created_at FROM users ORDER BY id ASC');
+    const uRes = await pool.query('SELECT id, username, role, tag, tag_color, created_at FROM users ORDER BY id ASC');
     const qRes = await pool.query('SELECT q.id, q.title, u.username FROM questions q LEFT JOIN users u ON q.user_id = u.id ORDER BY q.id DESC');
     res.render('admin_dashboard', { users: uRes.rows || [], questions: qRes.rows || [] });
   } catch (err) {
     res.status(500).send('Mod Error: ' + err.message);
   }
+});
+
+// Změna role uživatele administrátorem
+app.post('/mod/set-user-role', async (req, res) => {
+  if (!req.session.isAdmin) return res.status(403).send('Access Denied');
+  const { user_id, role } = req.body;
+  const allowedRoles = ['user', 'helper', 'moderator'];
+  
+  if (!allowedRoles.includes(role)) {
+    return res.status(400).send('Invalid role specified.');
+  }
+
+  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, user_id]);
+  res.redirect('/mod/dashboard');
 });
 
 // Reset hesla uživatele administrátorem
@@ -509,6 +511,10 @@ app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');
 });
+
+// Přesměrování starých odkazů z /admin na /mod
+app.get('/admin', (req, res) => res.redirect('/mod'));
+app.get('/admin/dashboard', (req, res) => res.redirect('/mod/dashboard'));
 
 // Přesměrování starých odkazů z /admin na /mod
 app.get('/admin', (req, res) => res.redirect('/mod'));
