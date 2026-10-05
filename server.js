@@ -117,6 +117,12 @@ function parseQuestionLinks(text) {
   return text.replace(regex, '<a href="/questions/$1" class="question-link">#$1</a>');
 }
 
+function getRoleBadge(role) {
+  if (role === 'moderator') return '👑 ';
+  if (role === 'helper') return '🛡️ ';
+  return '';
+}
+
 // Funkce pro převod /colortext "barva" "text" na HTML
 function parseColorText(text) {
   if (!text) return text;
@@ -143,15 +149,22 @@ function formatPostContent(text) {
 
 async function initDb() {
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        tag VARCHAR(100) DEFAULT '',
-        tag_color VARCHAR(50) DEFAULT 'blue',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      password VARCHAR(255) NOT NULL,
+      tag VARCHAR(100) DEFAULT '',
+      tag_color VARCHAR(50) DEFAULT 'blue',
+      role VARCHAR(20) DEFAULT 'user',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user';
+  `);
+} catch (err) {
+  console.error("Error creating users table:", err);
+}
     `);
 
     // Přidání sloupce pro accepted answer do otázek
@@ -219,6 +232,7 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAdmin = req.session.isAdmin || false;
   res.locals.formatPostContent = formatPostContent;
+  res.locals.getRoleBadge = getRoleBadge;
   next();
 });
 
@@ -294,7 +308,14 @@ app.post('/login', async (req, res) => {
 
     if (user && await bcrypt.compare(password, user.password)) {
       // 1. Uložíme uživatele do session
-      req.session.user = { id: user.id, username: user.username };
+      // Příklad při úspěšném přihlášení:
+      req.session.user = {
+        id: dbUser.id,
+        username: dbUser.username,
+        role: dbUser.role || 'user',
+        tag: dbUser.tag,
+        tag_color: dbUser.tag_color
+      };
       req.session.isAdmin = user.is_admin ? true : false;
       
       // 2. Vynutíme uložení session PŘED přesměrováním
@@ -393,6 +414,23 @@ app.post('/user/remove-account', async (req, res) => {
     res.status(500).send('Error removing account: ' + err.message);
   }
 });
+
+app.post('/user/update-tag', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  
+  const { tag, tag_color } = req.body;
+  const userId = req.session.user.id;
+  const role = req.session.user.role;
+
+  if (role === 'helper' || role === 'moderator') {
+    await pool.query(
+      'UPDATE users SET tag = $1, tag_color = $2 WHERE id = $3',
+      [tag, tag_color, userId]
+    );
+  }
+  res.redirect('/user/' + req.session.user.username);
+});
+
 // --- MODERACE & ADMIN PANEL ---
 app.get('/mod', (req, res) => res.render('admin_login'));
 app.post('/mod', (req, res) => {
@@ -402,6 +440,26 @@ app.post('/mod', (req, res) => {
   } else {
     res.send('Incorrect Password.');
   }
+});
+
+function isModerator(req, res, next) {
+  if (req.session.user && req.session.user.role === 'moderator') {
+    return next();
+  }
+  res.status(403).send('Access denied: Moderator role required.');
+}
+
+app.get('/admin', isModerator, async (req, res) => {
+  // Načteme uživatele rozdělené podle rolí
+  const mods = await pool.query("SELECT * FROM users WHERE role = 'moderator'");
+  const helpers = await pool.query("SELECT * FROM users WHERE role = 'helper'");
+  const regularUsers = await pool.query("SELECT * FROM users WHERE role = 'user' OR role IS NULL");
+
+  res.render('admin', {
+    moderators: mods.rows,
+    helpers: helpers.rows,
+    users: regularUsers.rows
+  });
 });
 
 app.get('/mod/dashboard', async (req, res) => {
@@ -537,6 +595,28 @@ app.post('/answers/remove', async (req, res) => {
   } catch (err) {
     res.status(500).send('Error removing answer: ' + err.message);
   }
+});
+
+// Pomocná kontrola teoretického "moderačního" práva
+function isStaff(user) {
+  return user && (user.role === 'moderator' || user.role === 'helper');
+}
+
+// Route pro smazání otázky
+app.post('/questions/remove', async (req, res) => {
+  if (!req.session.user) return res.redirect('/login');
+  
+  const { question_id } = req.body;
+  const user = req.session.user;
+
+  // Ověříme, zda je uživatel autor NEBO má roli helper/moderator
+  const q = await pool.query('SELECT user_id FROM questions WHERE id = $1', [question_id]);
+  const isOwner = q.rows[0] && q.rows[0].user_id === user.id;
+
+  if (isOwner || isStaff(user)) {
+    await pool.query('DELETE FROM questions WHERE id = $1', [question_id]);
+  }
+  res.redirect('/');
 });
 
 app.get('/users/search', async (req, res) => {
