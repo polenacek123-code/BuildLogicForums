@@ -46,6 +46,46 @@ function parseImages(text) {
   const regex = /\/img\s+"([^"]+)"/g;
   return text.replace(regex, '<img src="$1" style="max-width:100%; height:auto; border-radius:8px; margin:10px 0; display:block;" alt="User Uploaded Image">');
 }
+
+app.post('/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file uploaded.' });
+    }
+
+    if (!supabase) {
+      return res.status(500).json({ error: 'Supabase client is not configured.' });
+    }
+
+    // Vytvoření unikátního názvu souboru (např. 1700000000-obrazek.png)
+    const fileExt = req.file.originalname.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+    const filePath = `forum-uploads/${fileName}`;
+
+    // Upload do Supabase Storage bucketu 'forum-images'
+    const { data, error } = await supabase.storage
+      .from('forum-images')
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    // Získání veřejné URL adresy nahraného obrázku
+    const { data: publicUrlData } = supabase.storage
+      .from('forum-images')
+      .getPublicUrl(filePath);
+
+    return res.json({ imageUrl: publicUrlData.publicUrl });
+  } catch (err) {
+    console.error('Upload route error:', err);
+    return res.status(500).json({ error: 'Server error during upload.' });
+  }
+});
 // ----------------------------------------------
 
 const BAD_WORDS = ['badword1', 'fuck', 'shit', 'bitch', 'asshole', 'crap', 'bastard', 'dick'];
