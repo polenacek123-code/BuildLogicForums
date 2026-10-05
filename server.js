@@ -157,8 +157,6 @@ async function initDb() {
 }
 initDb();
 
-const app = express();
-
 // 1. Zásadní řádek pro Render (řekne Expressu, že běží za HTTPS proxy)
 app.set('trust proxy', 1);
 
