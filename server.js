@@ -307,16 +307,15 @@ app.post('/login', async (req, res) => {
     const user = uRes.rows[0];
 
     if (user && await bcrypt.compare(password, user.password)) {
-      // 1. Uložíme uživatele do session
-      // Příklad při úspěšném přihlášení:
+      // 1. Uložíme uživatele do session (použijeme proměnnou 'user')
       req.session.user = {
-        id: dbUser.id,
-        username: dbUser.username,
-        role: dbUser.role || 'user',
-        tag: dbUser.tag,
-        tag_color: dbUser.tag_color
+        id: user.id,
+        username: user.username,
+        role: user.role || 'user',
+        tag: user.tag || '',
+        tag_color: user.tag_color || 'blue'
       };
-      req.session.isAdmin = user.is_admin ? true : false;
+      req.session.isAdmin = user.role === 'moderator' || user.is_admin ? true : false;
       
       // 2. Vynutíme uložení session PŘED přesměrováním
       return req.session.save((err) => {
