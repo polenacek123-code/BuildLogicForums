@@ -157,14 +157,20 @@ async function initDb() {
 }
 initDb();
 
+const app = express();
+
+// 1. Zásadní řádek pro Render (řekne Expressu, že běží za HTTPS proxy)
+app.set('trust proxy', 1);
+
+// 2. Správné nastavení session
 app.use(session({
-  secret: 'secret-key-wow-so-secret', // Tvá stávající secret hodnota
+  secret: 'vassuperklic123',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 dní v milisekundách
-    httpOnly: true, // Zvyšuje bezpečnost proti XSS
-    secure: process.env.NODE_ENV === 'production' // Nastaví HTTPS v produkci
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 dní
+    secure: process.env.NODE_ENV === 'production', // true na Renderu díky HTTPS
+    sameSite: 'lax'
   }
 }));
 
