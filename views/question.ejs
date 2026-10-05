@@ -17,6 +17,21 @@
     .delete-btn { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.85rem; }
     .mention-link { color: #3b82f6; background: rgba(59, 130, 246, 0.1); padding: 2px 5px; border-radius: 4px; font-weight: 600; }
     .question-link { color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 2px 5px; border-radius: 4px; font-weight: 600; }
+    
+    /* Upload Box Styles */
+    .image-upload-box {
+      margin-bottom: 12px;
+      padding: 10px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+    }
+    .img-preview {
+      max-height: 100px;
+      margin-top: 8px;
+      border-radius: 6px;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -116,11 +131,74 @@
       <!-- Answer Form -->
       <% if (user) { %>
         <form action="/questions/<%= question.id %>/answers" method="POST" style="margin-top: 20px;">
-          <textarea name="body" rows="3" placeholder="Write your answer... (use /colortext &quot;green&quot; &quot;text&quot;)" required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;"></textarea><br><br>
+          
+          <!-- Image Upload Box -->
+          <div class="image-upload-box">
+            <label style="font-size: 0.85rem; color: #64748b; font-weight: 600; display: block; margin-bottom: 5px;">Attach Image:</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="file" id="answerImageInput" accept="image/*" style="font-size: 0.85rem;">
+              <button type="button" onclick="uploadAnswerImage(event)" style="padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; background: #475569; color: white; border: none; cursor: pointer;">Upload Image</button>
+            </div>
+            <span id="uploadStatus" style="font-size: 0.85rem; display: block; margin-top: 5px; color: #64748b;"></span>
+            <img id="imagePreview" class="img-preview" alt="Preview">
+          </div>
+
+          <textarea id="answerBody" name="body" rows="3" placeholder="Write your answer... (use /colortext &quot;green&quot; &quot;text&quot; or /img &quot;url&quot;)" required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; box-sizing:border-box;"></textarea><br><br>
           <button type="submit" style="background:#2563eb; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer;">Post Answer</button>
         </form>
+      <% } else { %>
+        <p style="margin-top: 15px;"><a href="/login">Login</a> to post an answer.</p>
       <% } %>
     </div>
   </div>
+
+  <script>
+    async function uploadAnswerImage(e) {
+      if (e) e.preventDefault();
+
+      const fileInput = document.getElementById('answerImageInput');
+      const status = document.getElementById('uploadStatus');
+      const textarea = document.getElementById('answerBody');
+      const preview = document.getElementById('imagePreview');
+
+      if (!fileInput.files[0]) {
+        alert('Please select an image file first.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('image', fileInput.files[0]);
+
+      status.innerText = 'Uploading image...';
+      status.style.color = '#64748b';
+
+      try {
+        const response = await fetch('/upload-image', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.imageUrl) {
+          textarea.value += `\n/img "${data.imageUrl}"\n`;
+          status.innerText = 'Uploaded successfully!';
+          status.style.color = '#10b981';
+
+          preview.src = data.imageUrl;
+          preview.style.display = 'block';
+
+          fileInput.value = '';
+        } else {
+          status.innerText = 'Upload failed: ' + (data.error || 'Unknown error');
+          status.style.color = '#ef4444';
+        }
+      } catch (err) {
+        status.innerText = 'Error uploading image.';
+        status.style.color = '#ef4444';
+        console.error(err);
+      }
+    }
+  </script>
 </body>
 </html>
