@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Admin Dashboard</title>
@@ -12,62 +12,87 @@
     input, select, button { padding: 6px 10px; border-radius: 4px; border: none; }
     input, select { background: #45475a; color: white; }
     button { background: #89b4fa; color: #11111b; font-weight: bold; cursor: pointer; }
+    button:hover { background: #b4befe; }
     .danger { background: #f38ba8; color: #11111b; }
-    a { color: #89b4fa; }
+    .danger:hover { background: #eab6c3; }
+    a { color: #89b4fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
     .tag-badge { padding: 2px 6px; border-radius: 4px; font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>Admin Dashboard</h1>
-  <a href="/">← Zpět na fórum</a>
+  <a href="/">← Back to Forum</a>
 
   <div class="card">
-    <h2>Správa Uživatelů</h2>
+    <h2>User Management</h2>
     <table>
       <tr>
         <th>ID</th>
-        <th>Uživatel</th>
-        <th>Aktuální Tag</th>
-        <th>Nastavit Tag a Barvu</th>
-        <th>Reset Hesla</th>
-        <th>Akce</th>
+        <th>User</th>
+        <th>Role</th>
+        <th>Current Tag</th>
+        <th>Set Tag & Color</th>
+        <th>Reset Password</th>
+        <th>Actions</th>
       </tr>
       <% users.forEach(u => { %>
         <tr>
           <td><%= u.id %></td>
           <td><strong><%= u.username %></strong></td>
+          
+          <!-- Role Selector -->
+          <td>
+            <form action="/mod/set-user-role" method="POST" style="display:flex; gap: 5px;">
+              <input type="hidden" name="user_id" value="<%= u.id %>">
+              <select name="role">
+                <option value="user" <%= (u.role === 'user' || !u.role) ? 'selected' : '' %>>User</option>
+                <option value="helper" <%= u.role === 'helper' ? 'selected' : '' %>>🛡️ Helper</option>
+                <option value="moderator" <%= u.role === 'moderator' ? 'selected' : '' %>>👑 Moderator</option>
+              </select>
+              <button type="submit">Set</button>
+            </form>
+          </td>
+
+          <!-- Tag Display -->
           <td>
             <% if (u.tag) { %>
               <span class="tag-badge" style="color: <%= u.tag_color || 'white' %>; border: 1px solid <%= u.tag_color || 'white' %>;">
                 <%= u.tag %>
               </span>
             <% } else { %>
-              <em>Žádný</em>
+              <em>None</em>
             <% } %>
           </td>
+
+          <!-- Tag & Color Form -->
           <td>
             <form action="/mod/set-user-tag" method="POST" style="display:flex; gap: 5px; align-items: center;">
               <input type="hidden" name="user_id" value="<%= u.id %>">
-              <input type="text" name="tag" placeholder="Tag" value="<%= u.tag %>" style="width: 90px;">
+              <input type="text" name="tag" placeholder="Tag" value="<%= u.tag || '' %>" style="width: 90px;">
               <select name="tag_color">
                 <% ['blue', 'red', 'orange', 'yellow', 'green', 'cyan', 'purple', 'pink', 'black', 'grey', 'white', 'gold', 'lime', 'brown', 'lightblue', 'skyblue'].forEach(c => { %>
                   <option value="<%= c %>" <%= u.tag_color === c ? 'selected' : '' %>><%= c %></option>
                 <% }) %>
               </select>
-              <button type="submit">Uložit</button>
+              <button type="submit">Save</button>
             </form>
           </td>
+
+          <!-- Password Reset Form -->
           <td>
             <form action="/mod/reset-user-pass" method="POST" style="display:flex; gap: 5px;">
               <input type="hidden" name="user_id" value="<%= u.id %>">
-              <input type="password" name="new_pass" placeholder="Nové heslo" required style="width: 100px;">
+              <input type="password" name="new_pass" placeholder="New pass" required style="width: 90px;">
               <button type="submit">Reset</button>
             </form>
           </td>
+
+          <!-- Delete User Button -->
           <td>
             <form action="/mod/remove-user" method="POST" style="display:inline;">
               <input type="hidden" name="user_id" value="<%= u.id %>">
-              <button type="submit" class="danger" onclick="return confirm('Smazat uživatele a veškerý jeho obsah?')">Smazat</button>
+              <button type="submit" class="danger" onclick="return confirm('Delete user and all their content?')">Delete</button>
             </form>
           </td>
         </tr>
@@ -76,13 +101,13 @@
   </div>
 
   <div class="card">
-    <h2>Správa Otázek</h2>
+    <h2>Question Management</h2>
     <table>
       <tr>
         <th>ID</th>
-        <th>Název</th>
-        <th>Autor</th>
-        <th>Akce</th>
+        <th>Title</th>
+        <th>Author</th>
+        <th>Actions</th>
       </tr>
       <% questions.forEach(q => { %>
         <tr>
@@ -92,7 +117,7 @@
           <td>
             <form action="/mod/remove-question" method="POST" style="display:inline;">
               <input type="hidden" name="question_id" value="<%= q.id %>">
-              <button type="submit" class="danger" onclick="return confirm('Opravdu smazat otázku?')">Smazat</button>
+              <button type="submit" class="danger" onclick="return confirm('Delete this question?')">Delete</button>
             </form>
           </td>
         </tr>
