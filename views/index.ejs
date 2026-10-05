@@ -9,7 +9,7 @@
     .container { max-width: 900px; margin: 0 auto; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-    .tag-badge { padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; border: 1px solid currentColor; }
+    .tag-badge { padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 0.75rem; border: 1px solid currentColor; margin-left: 4px; }
     .vote-btn { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-weight: bold; }
     .vote-btn:hover { background: #e2e8f0; }
     a { color: #2563eb; text-decoration: none; }
@@ -58,7 +58,9 @@
       <h1>Build Logic Forum</h1>
       <div>
         <% if (user) { %>
-          <a href="/user/<%= user.username %>">My Profile (<%= user.username %>)</a> | 
+          <a href="/user/<%= user.username %>">
+            My Profile (<%= getRoleBadge(user.role) %><%= user.username %>)
+          </a> | 
           <a href="/logout">Logout</a>
         <% } else { %>
           <a href="/login">Login</a> | <a href="/register">Register</a>
@@ -110,7 +112,7 @@
         <div style="flex:1;">
           <h3 style="margin:0 0 5px 0;"><a href="/questions/<%= q.id %>"><%= q.title %></a></h3>
           <p style="margin:0; font-size:0.9rem; color:#64748b;">
-            Asked by <a href="/user/<%= q.username %>"><strong><%= q.username %></strong></a>
+            Asked by <a href="/user/<%= q.username %>"><strong><%= getRoleBadge(q.user_role || q.role) %><%= q.username %></strong></a>
             <% if (q.tag) { %>
               <span class="tag-badge" style="color: <%= q.tag_color || '#3b82f6' %>;"><%= q.tag %></span>
             <% } %>
