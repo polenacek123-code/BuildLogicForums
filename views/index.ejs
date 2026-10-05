@@ -50,6 +50,12 @@
       border-radius: 6px;
       display: none;
     }
+    .easter-egg {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
@@ -57,6 +63,7 @@
     <div class="header">
       <h1>Build Logic Forum</h1>
       <div>
+        <a href="/users/search">Find Users</a> | 
         <% if (user) { %>
           <a href="/user/<%= user.username %>">
             My Profile (<%= getRoleBadge(user.role) %><%= user.username %>)
@@ -121,6 +128,11 @@
         </div>
       </div>
     <% }) %>
+
+    <!-- Footer Easter Egg Joke -->
+    <div class="easter-egg">
+      there is no such a thing as summoning motmot0054
+    </div>
   </div>
 
   <script>
