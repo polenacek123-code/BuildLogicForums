@@ -5,54 +5,78 @@
   <title>Profile: <%= profileUser.username %></title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; }
-    .card { background: white; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto 20px auto; }
-    .badge { background-color: #e0e7ff; color: #3730a3; font-size: 0.85rem; padding: 3px 10px; border-radius: 12px; font-weight: 700; }
+    body { font-family: 'Inter', sans-serif; background: #f4f6f9; padding: 20px; color: #1e293b; }
+    .card { background: white; border-radius: 12px; padding: 20px; max-width: 800px; margin: 0 auto 20px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .badge { background-color: #e0e7ff; color: #3730a3; font-size: 0.85rem; padding: 3px 10px; border-radius: 12px; font-weight: 700; border: 1px solid currentColor; display: inline-block; margin-left: 8px; }
     a { color: #2563eb; text-decoration: none; }
-    input, button { padding: 8px 12px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; }
-    button { background: #2563eb; color: white; border: none; cursor: pointer; }
+    input, button, select { padding: 8px 12px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; font-weight: 600; }
+    button:hover { background: #1d4ed8; }
     .danger-btn { background: #ef4444; }
-  .mention-link {
-  color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.mention-link:hover {
-  text-decoration: underline;
-  background: rgba(59, 130, 246, 0.2);
-}
-
-.question-link {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-weight: 600;
-  text-decoration: none;
-}
-.question-link:hover {
-  text-decoration: underline;
-  background: rgba(16, 185, 129, 0.2);
-}
+    .danger-btn:hover { background: #dc2626; }
+    .admin-btn { background: #8b5cf6; }
+    .admin-btn:hover { background: #7c3aed; }
+    .mention-link {
+      color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .mention-link:hover {
+      text-decoration: underline;
+      background: rgba(59, 130, 246, 0.2);
+    }
+    .question-link {
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .question-link:hover {
+      text-decoration: underline;
+      background: rgba(16, 185, 129, 0.2);
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <a href="/">← Back to Forum</a>
-    <h1>
-      User: <%= profileUser.username %>
-      <% if (profileUser.tag) { %><span class="badge"><%= profileUser.tag %></span><% } %>
+    <h1 style="margin-top: 10px; margin-bottom: 5px;">
+      User: <%= getRoleBadge(profileUser.role) %><%= profileUser.username %>
+      <% if (profileUser.tag) { %>
+        <span class="badge" style="color: <%= profileUser.tag_color || '#3730a3' %>; background-color: transparent;">
+          <%= profileUser.tag %>
+        </span>
+      <% } %>
     </h1>
-    <p>Joined on: <%= profileUser.created_at %></p>
+    <p style="color: #64748b; font-size: 0.9rem; margin-top: 0;">Joined on: <%= profileUser.created_at %></p>
+    
+    <% if (user && user.id === profileUser.id && user.role === 'moderator') { %>
+      <div style="margin-top: 15px;">
+        <a href="/admin"><button type="button" class="admin-btn">⚙️ Open Admin Dashboard</button></a>
+      </div>
+    <% } %>
   </div>
 
   <% if (user && user.id === profileUser.id) { %>
     <div class="card">
       <h3>Account Settings</h3>
       
+      <!-- Staff Custom Tag Settings (Helpers & Moderators) -->
+      <% if (user.role === 'helper' || user.role === 'moderator') { %>
+        <h4>Custom Tag & Color</h4>
+        <form action="/user/update-tag" method="POST" style="margin-bottom: 20px;">
+          <input type="text" name="tag" placeholder="Tag Name (e.g. Helper)" value="<%= profileUser.tag || '' %>" style="width: 200px;">
+          <input type="color" name="tag_color" value="<%= profileUser.tag_color || '#2563eb' %>" style="height: 38px; vertical-align: middle; cursor: pointer;"><br>
+          <button type="submit">Save Tag</button>
+        </form>
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+      <% } %>
+
       <h4>Change Password</h4>
       <form action="/user/change-password" method="POST">
         <input type="password" name="current_password" placeholder="Current Password" required><br>
@@ -82,7 +106,7 @@
     <h2>Answers (<%= answers.length %>)</h2>
     <ul>
       <% answers.forEach(a => { %>
-        <li>On <a href="/questions/<%= a.question_id %>"><%= a.question_title %></a>: "<%= a.body %>"</li>
+        <li>On <a href="/questions/<%= a.question_id %>"><%= a.question_title %></a>: "<%- formatPostContent(a.body) %>"</li>
       <% }) %>
     </ul>
   </div>
